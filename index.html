@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Camargos">
+<meta name="theme-color" content="#0F1720">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAADmklEQVR4nO3cMXIbRxBA0aVLuUKlSnwTX8on8KV8E1/GAVgiCwJJYD8xM+C+FyohqutzdsVB9dP3Hz832OuP2R+AxyYgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIJJvsz/Ax/789+/ZH2Gm//76Z/ZHeM/TmjsSDx7NWxaMabmApPOhpTJaKCDp3GSRjFZ5iVbPrRaZ2BIBLTKLh7PC3CY/wlYYwRcw8XE28wRSz2eZOMklHmE8rmkBOX4+16x5zglIPfcwZaoTAlLP/YyfrXcgktEBOX7ubfCEnUAkQwNy/Iwxcs4P8H2gKX7/2676LxLQubeuBU7/LqMzAnpxzY2SjM6MewdafOg33Ucu8l2cdwybtv+FbduuINZvaAwBkQho/1niENoERHT0gOIp4hA6ekBEAiIREImASAREcvSA4p/8F7+fGeDoAREJaP8p4vjZBEQkoG3bdZY4fk4E9OymINTzi28kvjhl8f71lnTOCOjcWxlJ5yIBXSaXK3kHIhEQiYBIBEQiIBIBkQiIREAkAiIREImASNyFXeYy9UoCOmdD2U0E9MKGsh28Az37YhvKhhHQttlQFgiIREA2lCUCIjl6QDaURUcPiEhAJAIiERCJgEiOHpANZdHRAyISkA1liYBIBLRtNpQFAnpmQ9k+vpH4woayHQR0zoaymwjoMrlcyTsQiYBIBEQiIBIBkQiIREAkAiIREImASARE4i7sMpepVxLQORvKbiKgFzaU7eAd6JkNZfsIaNtsKAsERCIgG8oSAZEcPSAbyqKjB0QkIBIBkQiIREAkRw/IhrLo6AERCciGskRAJALaNhvKAgE9s6Fsn6fvP34O+2EPMfevsaFs2CWdr7Ses6HsJgK6TC5X8g5EMjQg354ZY+ScnUAkowNyCN3b4Ak7gUgmBOQQup/xs51zAmnoHqZMddojTEOfa9Y8vQORzAzIIfRZJk5y6GXqW9wb7Db9l3CJR9j0KTyoFea2REDbGrN4LItMbIlH2GseZx9aJJ2T5QI6kdFFS6VzsmhArx08pgWjee0BAmJlq7xE86AERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBI/gcavd8ENY3xRwAAAABJRU5ErkJggg==">
+<title>Camargos Finance</title>
+<style>
+:root{
+  --bg:#0F1720; --card:#182430; --card2:#121C26; --line:#25384A;
+  --txt:#E9EFF5; --mut:#8CA1B4; --ok:#22C55E; --erro:#F87171;
+  --mercado:#F59E0B; --restaurantes:#34D399; --compras:#A78BFA;
+  --combustivel:#38BDF8; --viaverde:#FB7185;
+  --accent:var(--mercado);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px)}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px 0}
+.hide{display:none !important}
+
+h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);
+  margin:0 0 14px;font-weight:600;display:flex;align-items:center;gap:8px}
+h1 img{width:24px;height:24px;border-radius:50%}
+h1 button{margin-left:auto;background:none;border:0;color:var(--mut);
+  font-size:12px;cursor:pointer;text-decoration:underline}
+
+.gate{max-width:360px;margin:22vh auto;text-align:center;padding:0 20px}
+.gate p{color:var(--mut);font-size:14px;line-height:1.5}
+
+.hero{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:16px 18px;margin-bottom:14px}
+.hero .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.hero .val{font-size:34px;font-weight:700;margin-top:2px;letter-spacing:-.02em}
+.hero .split{font-size:12px;color:var(--mut);margin-top:6px}
+
+.lbl2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);
+  margin:16px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{flex:1 1 auto;min-width:calc(50% - 4px);padding:13px 10px;border-radius:12px;
+  border:1px solid var(--line);background:var(--card2);color:var(--txt);
+  font-size:14px;font-weight:600;text-align:center;cursor:pointer;font-family:inherit}
+.chip.sm{min-width:calc(33.33% - 6px);font-size:13px;padding:11px 6px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#0B1219}
+
+input,select,textarea{width:100%;padding:14px;border-radius:12px;
+  border:1px solid var(--line);background:var(--card2);color:var(--txt);
+  font-size:16px;font-family:inherit;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+.valor{font-size:30px;font-weight:700;text-align:center;letter-spacing:-.02em}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+
+.pago{display:flex;align-items:center;gap:10px;margin-top:12px;
+  color:var(--mut);font-size:14px}
+.pago input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--ok)}
+
+.btn{width:100%;margin-top:20px;padding:17px;border-radius:14px;border:0;
+  background:var(--accent);color:#0B1219;font-size:17px;font-weight:700;
+  cursor:pointer;font-family:inherit}
+.btn[disabled]{opacity:.5}
+.btn.google{background:#fff;color:#1a1a1a;display:flex;align-items:center;
+  justify-content:center;gap:10px}
+
+.hist{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+.it{display:flex;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+.it .l{flex:1;display:flex;flex-direction:column}
+.it em{color:var(--mut);font-size:12px;font-style:normal;margin-top:2px}
+.it b{font-variant-numeric:tabular-nums}
+.it .del{background:none;border:0;color:var(--mut);font-size:20px;
+  cursor:pointer;padding:0 4px;line-height:1}
+
+.aviso{background:#3A2A0B;border:1px solid #6B4E14;color:#F5D68A;
+  border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:12px}
+
+.toast{position:fixed;left:16px;right:16px;bottom:26px;max-width:490px;margin:0 auto;
+  padding:14px 16px;border-radius:12px;background:var(--ok);color:#06210F;
+  font-weight:700;text-align:center;opacity:0;transform:translateY(12px);
+  transition:.25s;pointer-events:none;font-size:15px}
+.toast.show{opacity:1;transform:none}
+.toast.err{background:var(--erro);color:#fff}
+</style>
+</head>
+<body>
+
+<!-- ecrã de entrada ------------------------------------------------ -->
+<div id="gate" class="gate">
+  <h1 style="justify-content:center">Camargos Finance</h1>
+  <p>Entra com a tua conta Google. Cada pessoa vê os lançamentos da casa,
+     e só o dono pode apagar.</p>
+  <button id="entrar" class="btn google">Entrar com Google</button>
+</div>
+
+<!-- app ------------------------------------------------------------- -->
+<div id="app" class="wrap hide">
+  <h1>
+    <img id="avatar" class="hide" alt="">
+    <span id="casa">Camargos Finance</span>
+    <button id="sair">sair</button>
+  </h1>
+
+  <div id="offline" class="aviso hide">
+    Sem ligação. Podes lançar à mesma — sincroniza sozinho quando a rede voltar.
+  </div>
+
+  <div id="semCasa" class="aviso hide">
+    A tua conta ainda não pertence a nenhum agregado.
+    Pede ao Tiago para te convidar pelo teu email.
+  </div>
+
+  <div id="formWrap">
+    <div class="hero">
+      <div class="lbl">Gasto de hoje</div>
+      <div class="val" id="totalHoje">€ 0,00</div>
+      <div class="split" id="split"></div>
+    </div>
+
+    <div class="lbl2">Categoria</div>
+    <div class="chips" id="cats"></div>
+
+    <div class="lbl2">Valor</div>
+    <input id="valor" class="valor" inputmode="decimal" placeholder="0,00">
+
+    <div class="lbl2" id="lblOnde">Onde</div>
+    <input id="onde" list="ondeList" placeholder="Onde">
+    <datalist id="ondeList"></datalist>
+
+    <div class="lbl2" id="lblExtra">Categoria</div>
+    <select id="extra"></select>
+
+    <div id="litrosWrap" class="hide">
+      <div class="lbl2">Litros</div>
+      <input id="litros" inputmode="decimal" placeholder="ex. 42,5">
+    </div>
+
+    <div id="pessoasWrap" class="hide">
+      <div class="lbl2">Nº de pessoas</div>
+      <input id="pessoas" inputmode="numeric" placeholder="ex. 4">
+    </div>
+
+    <div class="lbl2">Pagamento</div>
+    <div class="chips" id="pags"></div>
+
+    <div class="lbl2">Nota e data</div>
+    <div class="row">
+      <input id="nota" placeholder="opcional">
+      <input id="data" type="date">
+    </div>
+
+    <label class="pago">
+      <input id="pago" type="checkbox" checked>
+      Já está pago
+    </label>
+
+    <button id="guardar" class="btn">Guardar lançamento</button>
+
+    <div class="hist">
+      <div class="lbl2" style="margin-top:0">Últimos lançamentos</div>
+      <div id="hist"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
