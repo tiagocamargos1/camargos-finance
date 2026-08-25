@@ -1,0 +1,12 @@
+{
+  "name": "Camargos Finance",
+  "short_name": "Camargos",
+  "description": "Controlo de gastos diarios da familia Camargos.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F1720",
+  "theme_color": "#0F1720",
+  "lang": "pt-PT"
+}
