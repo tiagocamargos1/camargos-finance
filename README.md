@@ -2,10 +2,26 @@
 
 Controlo de gastos diarios da familia Camargos.
 
-- **App:** https://tiagocamargos1.github.io/camargos-finance/
+- **App:** https://camargos-finance.firebaseapp.com
 - **Backend:** Firebase (projeto `camargos-finance`, Firestore em europe-west1)
+- **Alojamento:** Firebase Hosting. `npx -y firebase-tools deploy --only hosting`
+  a partir da raiz do repositorio.
 - **Login:** conta Google. So o dono apaga e administra.
 - **Offline:** persistencia do Firestore — lanca sem rede e sincroniza sozinho.
+
+## O endereco nao e um detalhe
+
+A app **tem** de ser aberta no mesmo dominio que termina o login do Google
+(`authDomain` no `app.js`). Servida de outro dominio, o Safari do iPhone isola o
+armazenamento do dominio de login e o Google volta com
+*«missing initial state»* — foi o que aconteceu enquanto a app vivia no GitHub Pages.
+
+O Firebase Hosting serve o mesmo site em `.web.app` **e** em `.firebaseapp.com`.
+Usa-se o **`.firebaseapp.com`** porque e o unico que o cliente OAuth do projeto ja
+tem autorizado como `redirect_uri`; com o `.web.app` o Google responde
+`Erro 400: redirect_uri_mismatch`, e isso so se resolve na consola do Google Cloud.
+Se algum dia o `.web.app` for para ser usado, e la que se acrescenta
+`https://camargos-finance.web.app/__/auth/handler`.
 
 ## Ficheiros
 
@@ -15,6 +31,7 @@ Controlo de gastos diarios da familia Camargos.
 | `app.js` | Logica: auth, agregado familiar, lancamentos, ecra do mes, offline |
 | `manifest.json` | PWA — nome, cores, icones e atalhos |
 | `sw.js` | Service worker: arranque sem rede |
+| `firebase.json` · `.firebaserc` | O que se publica no Hosting e em que projeto |
 | `icon-*.png` | Icones da app (192, 512, maskable) e apple-touch-icon |
 
 ## Ecras
