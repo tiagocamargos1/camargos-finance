@@ -180,6 +180,47 @@ function hojeISO() {
   return `${d.getFullYear()}-${m}-${dd}`;
 }
 
+/* --- Datas -------------------------------------------------------- *
+ * UM so sitio a interpretar datas de talao. O que se MOSTRA e sempre
+ * DD/MM/AAAA (dataPT); o que se grava no <input type="date"> tem de ser
+ * AAAA-MM-DD (dataISO), porque e o que a norma do HTML exige — o iPhone
+ * mostra-o na ordem portuguesa na mesma.
+ *
+ * ⚠️ Testar ISO PRIMEIRO e ancorar as duas expressoes. Sem isso, a
+ * expressao de DD/MM/AAAA casa com o FIM de uma data ISO: «2026-08-14»
+ * dava 26/08/14, e o «14» virava o ano 2014. Foi assim que um talao de
+ * agosto de 2026 foi parar a agosto de 2014, sem erro nenhum a vista.
+ * ------------------------------------------------------------------ */
+
+function partesData(bruto) {
+  const t = String(bruto || '').trim();
+  const iso = t.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if (iso) {
+    return { a: iso[1], m: ('0' + iso[2]).slice(-2), d: ('0' + iso[3]).slice(-2) };
+  }
+  const pt = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if (pt) {
+    return {
+      a: pt[3].length === 2 ? '20' + pt[3] : pt[3],
+      m: ('0' + pt[2]).slice(-2),
+      d: ('0' + pt[1]).slice(-2)
+    };
+  }
+  return null;
+}
+
+/** Para mostrar a pessoas: DD/MM/AAAA. */
+function dataPT(bruto) {
+  const p = partesData(bruto);
+  return p ? `${p.d}/${p.m}/${p.a}` : String(bruto || '');
+}
+
+/** Para o <input type="date">: AAAA-MM-DD. */
+function dataISO(bruto) {
+  const p = partesData(bruto);
+  return p ? `${p.a}-${p.m}-${p.d}` : '';
+}
+
 function toast(msg, erro) {
   const t = $('#toast');
   t.textContent = msg;
@@ -736,7 +777,7 @@ function mostrarRecibo(r) {
 
   $('#reciboTxt').innerHTML =
     linha('Valor', r.valor ? r.valor + ' €' : '') +
-    linha('Data', r.data) +
+    linha('Data', dataPT(r.data)) +
     linha('Onde', r.onde) +
     linha('Pagamento', r.pagamento) +
     linha('Tipo', nome || r.aba) +
@@ -771,23 +812,9 @@ function usarRecibo() {
   if (r.litros) $('#litros').value = r.litros;
   if (r.pessoas) $('#pessoas').value = r.pessoas;
 
-  // A data pode vir em AAAA-MM-DD (e o que o Gemini devolve) ou em DD/MM/AAAA.
-  //
-  // ⚠️ Testar o formato ISO PRIMEIRO, e ancorar as duas expressoes no inicio.
-  // A expressao de DD/MM/AAAA, sem ancora, casa com o FIM de uma data ISO:
-  // «2026-08-14» dava 26/08/14, e o «14» virava o ano 2014. Foi assim que um
-  // talao de 14/08/2026 foi parar a agosto de 2014 — sem erro nenhum a vista,
-  // so um gasto que desaparecia do mes.
-  const bruto = String(r.data || '').trim();
-  const iso = bruto.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
-  const pt  = bruto.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
-  if (iso) {
-    $('#data').value =
-      iso[1] + '-' + ('0' + iso[2]).slice(-2) + '-' + ('0' + iso[3]).slice(-2);
-  } else if (pt) {
-    const ano = pt[3].length === 2 ? '20' + pt[3] : pt[3];
-    $('#data').value = ano + '-' + ('0' + pt[2]).slice(-2) + '-' + ('0' + pt[1]).slice(-2);
-  }
+  // O <input type="date"> so aceita AAAA-MM-DD — ver dataISO().
+  const iso = dataISO(r.data);
+  if (iso) $('#data').value = iso;
 
   if (r.pagamento) {
     const lista = estado.listas.pagamentos || LISTAS_INICIAIS.pagamentos;
