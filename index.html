@@ -201,6 +201,21 @@ input:focus,select:focus{border-color:var(--accent-borda)}
 .fill2{display:block;height:100%;width:0;border-radius:4px;background:var(--ok);
   transition:width .5s cubic-bezier(.2,.8,.2,1)}
 
+/* ---------- quem entra na casa ---------- */
+.tabs button.soDono{display:none}
+body.dono .tabs button.soDono{display:block}
+.notinha{margin:0;color:var(--mut);font-size:13px;line-height:1.5}
+.pessoa{display:flex;align-items:center;gap:11px;padding:12px 0;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.pessoa .nm{flex:1;min-width:0;display:flex;flex-direction:column;font-size:14px}
+.pessoa .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pessoa .nm em{color:var(--mut);font-size:12px;font-style:normal;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pessoa .tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--mut);flex:0 0 auto}
+.pessoa .rm{background:none;border:0;color:var(--erro);font-size:13px;
+  font-family:inherit;cursor:pointer;padding:6px 2px;flex:0 0 auto}
+
 .conta{display:flex;align-items:center;gap:11px;padding:11px 0;
   border-bottom:1px solid rgba(255,255,255,.05)}
 .conta .tick{width:26px;height:26px;flex:0 0 auto;border-radius:8px;cursor:pointer;
@@ -418,6 +433,28 @@ input:focus,select:focus{border-color:var(--accent-borda)}
       Só o Tiago marca as contas fixas como pagas.
     </div>
   </section>
+
+  <!-- ============ ECRÃ: CASA ============ -->
+  <section id="ecraCasa" class="hide">
+    <div class="lbl2">Convidar alguém</div>
+    <div class="painel vert">
+      <p class="notinha">
+        O convite é uma chave à espera: a pessoa entra sozinha quando iniciar sessão
+        com <b>esse mesmo email</b> do Google. Entra sempre como membro — lança e
+        corrige os gastos dela, mas não apaga nem mexe nas contas fixas, no orçamento
+        ou nas listas.
+      </p>
+      <input id="casaEmail" type="email" inputmode="email" autocomplete="off"
+             autocapitalize="off" spellcheck="false" placeholder="email@exemplo.com">
+      <button id="casaConvidar" class="btn">Convidar</button>
+    </div>
+
+    <div class="lbl2">Quem já entrou <span class="aux" id="casaMembrosAux"></span></div>
+    <div id="casaMembros"></div>
+
+    <div class="lbl2" style="margin-top:24px">Convites por aceitar</div>
+    <div id="casaConvites"></div>
+  </section>
 </div>
 
 <!-- separadores ------------------------------------------------------ -->
@@ -425,6 +462,7 @@ input:focus,select:focus{border-color:var(--accent-borda)}
   <button data-ecra="lancar" aria-current="true">Lançar</button>
   <button data-ecra="mes" aria-current="false">Mês</button>
   <button data-ecra="fixas" aria-current="false">Fixas</button>
+  <button data-ecra="casa" aria-current="false" class="soDono">Casa</button>
 </nav>
 
 <div id="toast" class="toast"></div>

@@ -259,7 +259,25 @@ async function arrancarAgregado(user) {
   }
 
   estado.hid = hid;
-  const hsnap = await getDoc(doc(db, 'households', hid));
+
+  // A casa pode ter deixado de ser dela — se o dono a removeu, o id ficou
+  // guardado em users/{uid} mas as regras ja recusam a leitura. Sem isto, a
+  // app rebentava com «permission-denied» em vez de dizer o que se passa.
+  let hsnap = null;
+  try {
+    hsnap = await getDoc(doc(db, 'households', hid));
+  } catch (e) {
+    console.warn('sem acesso ao agregado', e);
+  }
+  if (!hsnap || !hsnap.exists()) {
+    await setDoc(uref, { defaultHouseholdId: null }, { merge: true });
+    estado.hid = null;
+    $('#semCasa').classList.remove('hide');
+    $('#formWrap').classList.add('hide');
+    $('#tabs').classList.add('hide');
+    return;
+  }
+
   estado.souDono = hsnap.exists() && hsnap.data().ownerUid === user.uid;
   estado.orcamentoCents = (hsnap.exists() && hsnap.data().monthlyBudgetCents) || 0;
   // O URL da leitura de talões vem do Firestore, não do código — assim não
@@ -282,6 +300,137 @@ async function arrancarAgregado(user) {
   if (!estado.mesRef) estado.mesRef = primeiroDiaDoMes(new Date());
   ligarMes();
   ligarFixas();
+  if (estado.souDono) ligarCasa();
+}
+
+/* ------------------------------------------------------------------ */
+/* Ecrã «Casa» — quem entra e quem sai                                 */
+/* ------------------------------------------------------------------ */
+
+// Só o dono chega aqui: o separador tem a classe .soDono, que o CSS esconde
+// enquanto o <body> não tiver .dono. As regras do Firestore dizem o mesmo,
+// que é o que conta — o CSS é só cortesia.
+async function ligarCasa() {
+  if (!estado.souDono || !estado.hid) return;
+  await desenharMembros();
+  await desenharConvites();
+}
+
+async function desenharMembros() {
+  const wrap = $('#casaMembros');
+  let snap;
+  try {
+    snap = await getDocs(collection(db, 'households', estado.hid, 'members'));
+  } catch (e) {
+    wrap.innerHTML = '<div class="vazio">Não consegui ler os membros.</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  let n = 0;
+  snap.forEach((d) => {
+    n++;
+    const m = d.data();
+    const ehDono = m.role === 'owner';
+    const el = document.createElement('div');
+    el.className = 'pessoa';
+    el.innerHTML = '<div class="nm"><span></span><em></em></div>' +
+      (ehDono ? '<span class="tag">dono</span>' : '<button class="rm">remover</button>');
+    el.querySelector('.nm span').textContent = m.displayName || '(sem nome)';
+    el.querySelector('.nm em').textContent = m.email || '';
+    const bt = el.querySelector('.rm');
+    if (bt) bt.onclick = () => removerMembro(d.id, m);
+    wrap.appendChild(el);
+  });
+  $('#casaMembrosAux').textContent = n === 1 ? '1 pessoa' : n + ' pessoas';
+}
+
+async function desenharConvites() {
+  const wrap = $('#casaConvites');
+  let snap;
+  try {
+    snap = await getDocs(collection(db, 'households', estado.hid, 'invites'));
+  } catch (e) {
+    wrap.innerHTML = '<div class="vazio">Não consegui ler os convites.</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  let n = 0;
+  snap.forEach((d) => {
+    n++;
+    const el = document.createElement('div');
+    el.className = 'pessoa';
+    el.innerHTML = '<div class="nm"><span></span><em>à espera que entre</em></div>' +
+      '<button class="rm">cancelar</button>';
+    el.querySelector('.nm span').textContent = d.id;
+    el.querySelector('.rm').onclick = () => cancelarConvite(d.id);
+    wrap.appendChild(el);
+  });
+  if (!n) wrap.innerHTML = '<div class="vazio">Nenhum convite à espera.</div>';
+}
+
+async function convidar() {
+  const campo = $('#casaEmail');
+  const email = (campo.value || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    toast('Escreve um email válido.', true);
+    return;
+  }
+  if (email === (estado.user.email || '').toLowerCase()) {
+    toast('Esse email já é o teu.', true);
+    return;
+  }
+  const bt = $('#casaConvidar');
+  bt.disabled = true;
+  try {
+    await setDoc(doc(db, 'households', estado.hid, 'invites', email), {
+      role: 'member',
+      invitedAt: serverTimestamp()
+    });
+    campo.value = '';
+    toast('Convite criado. Manda-lhe o endereço da app.');
+    await ligarCasa();
+  } catch (e) {
+    toast('Não consegui convidar: ' + (e.code || e.message), true);
+  } finally {
+    bt.disabled = false;
+  }
+}
+
+async function cancelarConvite(email) {
+  if (!confirm(`Cancelar o convite de ${email}?`)) return;
+  try {
+    await deleteDoc(doc(db, 'households', estado.hid, 'invites', email));
+    toast('Convite cancelado.');
+    await ligarCasa();
+  } catch (e) {
+    toast('Não consegui cancelar: ' + (e.code || e.message), true);
+  }
+}
+
+// Remover tira o acesso. NAO apaga o que a pessoa lancou — esses gastos sao da
+// casa, e apaga-los aqui seria destruir historico sem ninguem pedir.
+async function removerMembro(uid, m) {
+  if (uid === estado.user.uid) {
+    toast('Não te podes remover a ti próprio.', true);
+    return;
+  }
+  const nome = (m && (m.displayName || m.email)) || 'esta pessoa';
+  if (!confirm(`Remover ${nome} da casa?\n\n` +
+               'Perde o acesso já. Os gastos que lançou ficam — não se apaga nada.')) return;
+  try {
+    await deleteDoc(doc(db, 'households', estado.hid, 'members', uid));
+    if (m && m.email) {
+      // Sem isto, o convite antigo deixava-a entrar outra vez sozinha.
+      try {
+        await deleteDoc(doc(db, 'households', estado.hid, 'invites', m.email.toLowerCase()));
+      } catch (e) { /* pode nao existir */ }
+    }
+    toast('Removida. Os lançamentos dela ficam.');
+    await carregarMembros();
+    await ligarCasa();
+  } catch (e) {
+    toast('Não consegui remover: ' + (e.code || e.message), true);
+  }
 }
 
 async function criarCasa(user) {
@@ -666,6 +815,8 @@ function mostrarEcra(nome) {
   $('#ecraLancar').classList.toggle('hide', nome !== 'lancar');
   $('#ecraMes').classList.toggle('hide', nome !== 'mes');
   $('#ecraFixas').classList.toggle('hide', nome !== 'fixas');
+  $('#ecraCasa').classList.toggle('hide', nome !== 'casa');
+  if (nome === 'casa') ligarCasa();
   $$('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.ecra === nome)));
   window.scrollTo(0, 0);
 }
@@ -1225,6 +1376,8 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#valor').addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); });
 
   $$('#tabs button').forEach((b) => { b.onclick = () => mostrarEcra(b.dataset.ecra); });
+  $('#casaConvidar').onclick = convidar;
+  $('#casaEmail').onkeydown = (e) => { if (e.key === 'Enter') convidar(); };
   $('#mesAnt').onclick = () => mudarMes(-1);
   $('#mesSeg').onclick = () => mudarMes(1);
   $('#fixAnt').onclick = () => mudarMes(-1);
