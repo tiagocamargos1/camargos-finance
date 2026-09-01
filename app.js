@@ -8,7 +8,11 @@
    -------------------------------------------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyCQ6W5sISAyfZYq1LPjh4M45bBsxH3NLsg",
-  authDomain: "camargos-finance.firebaseapp.com",
+  // Tem de ser o MESMO dominio de onde a app e servida. Se for outro, o
+  // Safari do iPhone isola o armazenamento do dominio de login e o Google
+  // volta com «missing initial state». Por isso a app vive no Firebase
+  // Hosting: camargos-finance.web.app serve tambem o /__/auth/handler.
+  authDomain: "camargos-finance.web.app",
   projectId: "camargos-finance",
   storageBucket: "camargos-finance.firebasestorage.app",
   messagingSenderId: "356888104453",
