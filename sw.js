@@ -1,10 +1,11 @@
 // Camargos Finance — service worker.
 // Estratégia: network-first para o HTML/JS (para as correções chegarem depressa),
 // cache-first para o resto. O Firestore trata dos dados offline sozinho.
-const CACHE = 'camargos-finance-v1';
+const CACHE = 'camargos-finance-v2';
 const BASE = new URL('./', self.location).pathname;
 const ESSENCIAIS = [
-  BASE, BASE + 'index.html', BASE + 'app.js', BASE + 'manifest.json'
+  BASE, BASE + 'index.html', BASE + 'app.js', BASE + 'manifest.json',
+  BASE + 'icon-192.png', BASE + 'icon-512.png', BASE + 'apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (e) => {

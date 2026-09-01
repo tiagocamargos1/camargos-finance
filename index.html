@@ -4,24 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Camargos">
 <meta name="theme-color" content="#0F1720">
 <link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAADmklEQVR4nO3cMXIbRxBA0aVLuUKlSnwTX8on8KV8E1/GAVgiCwJJYD8xM+C+FyohqutzdsVB9dP3Hz832OuP2R+AxyYgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIJJvsz/Ax/789+/ZH2Gm//76Z/ZHeM/TmjsSDx7NWxaMabmApPOhpTJaKCDp3GSRjFZ5iVbPrRaZ2BIBLTKLh7PC3CY/wlYYwRcw8XE28wRSz2eZOMklHmE8rmkBOX4+16x5zglIPfcwZaoTAlLP/YyfrXcgktEBOX7ubfCEnUAkQwNy/Iwxcs4P8H2gKX7/2676LxLQubeuBU7/LqMzAnpxzY2SjM6MewdafOg33Ucu8l2cdwybtv+FbduuINZvaAwBkQho/1niENoERHT0gOIp4hA6ekBEAiIREImASAREcvSA4p/8F7+fGeDoAREJaP8p4vjZBEQkoG3bdZY4fk4E9OymINTzi28kvjhl8f71lnTOCOjcWxlJ5yIBXSaXK3kHIhEQiYBIBEQiIBIBkQiIREAkAiIREImASNyFXeYy9UoCOmdD2U0E9MKGsh28Az37YhvKhhHQttlQFgiIREA2lCUCIjl6QDaURUcPiEhAJAIiERCJgEiOHpANZdHRAyISkA1liYBIBLRtNpQFAnpmQ9k+vpH4woayHQR0zoaymwjoMrlcyTsQiYBIBEQiIBIBkQiIREAkAiIREImASARE4i7sMpepVxLQORvKbiKgFzaU7eAd6JkNZfsIaNtsKAsERCIgG8oSAZEcPSAbyqKjB0QkIBIBkQiIREAkRw/IhrLo6AERCciGskRAJALaNhvKAgE9s6Fsn6fvP34O+2EPMfevsaFs2CWdr7Ses6HsJgK6TC5X8g5EMjQg354ZY+ScnUAkowNyCN3b4Ak7gUgmBOQQup/xs51zAmnoHqZMddojTEOfa9Y8vQORzAzIIfRZJk5y6GXqW9wb7Db9l3CJR9j0KTyoFea2REDbGrN4LItMbIlH2GseZx9aJJ2T5QI6kdFFS6VzsmhArx08pgWjee0BAmJlq7xE86AERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBI/gcavd8ENY3xRwAAAABJRU5ErkJggg==">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <title>Camargos Finance</title>
 <style>
 :root{
   --bg:#0F1720; --card:#182430; --card2:#121C26; --line:#25384A;
   --txt:#E9EFF5; --mut:#8CA1B4; --ok:#22C55E; --erro:#F87171;
+
+  /* cores da interface (chips, botões) */
   --mercado:#F59E0B; --restaurantes:#34D399; --compras:#A78BFA;
   --combustivel:#38BDF8; --viaverde:#FB7185;
   --accent:var(--mercado);
+
+  /* cores dos gráficos — validadas para fundo escuro e daltonismo
+     (banda de luminosidade, separação protan/deutan e contraste) */
+  --g-mercado:#B4730A; --g-restaurante:#16A575; --g-combustivel:#10A0D8;
+  --g-compra:#995ABE; --g-viaverde:#BF3A54; --g-neutro:#5A7387;
+  /* pessoas: dois neutros distintos, identidade fica no rótulo */
+  --g-p1:#93AABC; --g-p2:#4C687C;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--txt);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px)}
+  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 86px)}
 .wrap{max-width:520px;margin:0 auto;padding:18px 16px 0}
 .hide{display:none !important}
 
@@ -41,7 +52,8 @@ h1 button{margin-left:auto;background:none;border:0;color:var(--mut);
 .hero .split{font-size:12px;color:var(--mut);margin-top:6px}
 
 .lbl2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);
-  margin:16px 0 8px}
+  margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.lbl2 .aux{margin-left:auto;letter-spacing:0;text-transform:none;font-size:11px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{flex:1 1 auto;min-width:calc(50% - 4px);padding:13px 10px;border-radius:12px;
   border:1px solid var(--line);background:var(--card2);color:var(--txt);
@@ -76,16 +88,99 @@ input:focus,select:focus{border-color:var(--accent)}
 .it b{font-variant-numeric:tabular-nums}
 .it .del{background:none;border:0;color:var(--mut);font-size:20px;
   cursor:pointer;padding:0 4px;line-height:1}
+.it .pt{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 
 .aviso{background:#3A2A0B;border:1px solid #6B4E14;color:#F5D68A;
   border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:12px}
 
-.toast{position:fixed;left:16px;right:16px;bottom:26px;max-width:490px;margin:0 auto;
+.toast{position:fixed;left:16px;right:16px;bottom:96px;max-width:490px;margin:0 auto;
   padding:14px 16px;border-radius:12px;background:var(--ok);color:#06210F;
   font-weight:700;text-align:center;opacity:0;transform:translateY(12px);
-  transition:.25s;pointer-events:none;font-size:15px}
+  transition:.25s;pointer-events:none;font-size:15px;z-index:40}
 .toast.show{opacity:1;transform:none}
 .toast.err{background:var(--erro);color:#fff}
+
+/* ---------- separadores ---------- */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:rgba(15,23,32,.94);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);
+  padding:8px 12px calc(env(safe-area-inset-bottom) + 8px);
+  display:flex;gap:8px;justify-content:center}
+.tabs button{flex:1;max-width:246px;background:none;border:0;color:var(--mut);
+  font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;padding:10px 6px;border-radius:12px;cursor:pointer}
+.tabs button[aria-current="true"]{background:var(--card);color:var(--txt)}
+
+/* ---------- ecrã do mês ---------- */
+.mesnav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.mesnav button{width:40px;height:40px;flex:0 0 auto;border-radius:12px;
+  border:1px solid var(--line);background:var(--card2);color:var(--txt);
+  font-size:19px;line-height:1;cursor:pointer;font-family:inherit}
+.mesnav button[disabled]{opacity:.35}
+.mesnav .tit{flex:1;text-align:center}
+.mesnav .tit b{display:block;font-size:16px;font-weight:700;letter-spacing:-.01em}
+.mesnav .tit span{display:block;font-size:11px;color:var(--mut);margin-top:2px}
+
+.painel{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:16px;display:flex;gap:16px;align-items:center}
+.ringwrap{position:relative;width:132px;height:132px;flex:0 0 auto}
+.ringwrap svg{width:132px;height:132px;transform:rotate(-90deg)}
+.ringwrap .trilho{fill:none;stroke:var(--card2);stroke-width:11}
+.ringwrap .arco{fill:none;stroke:var(--ok);stroke-width:11;stroke-linecap:round;
+  transition:stroke-dashoffset .6s cubic-bezier(.2,.8,.2,1)}
+.ringtxt{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:0 8px}
+.ringtxt b{font-size:21px;font-weight:700;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.ringtxt span{font-size:11px;color:var(--mut);margin-top:3px;line-height:1.25}
+.meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.meta .lin{display:flex;align-items:baseline;gap:8px;font-size:13px}
+.meta .lin span{color:var(--mut);flex:1}
+.meta .lin b{font-variant-numeric:tabular-nums}
+.linkbtn{background:none;border:0;color:var(--mut);font-family:inherit;
+  font-size:12px;text-decoration:underline;cursor:pointer;padding:0;text-align:left}
+
+.cmp{margin-top:12px;font-size:13px;color:var(--mut);line-height:1.5}
+.cmp b{color:var(--txt);font-variant-numeric:tabular-nums}
+.cmp .sobe{color:#F0A0A0}
+.cmp .desce{color:#7BD8A6}
+
+/* barras horizontais */
+.barras{display:flex;flex-direction:column;gap:2px}
+.bar{display:block;width:100%;text-align:left;background:none;border:0;
+  padding:8px 0;font-family:inherit;cursor:pointer}
+.bar .top{display:flex;align-items:baseline;gap:8px;font-size:13px;margin-bottom:6px}
+.bar .nm{flex:1;color:var(--txt)}
+.bar .vl{font-variant-numeric:tabular-nums;font-weight:600}
+.bar .pc{color:var(--mut);font-size:12px;min-width:34px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.bar .trilho{display:block;height:8px;border-radius:4px;background:var(--card2);
+  overflow:hidden}
+.bar .fill{display:block;height:100%;border-radius:4px;
+  transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.bar[aria-pressed="true"] .nm{font-weight:700}
+.bar[aria-pressed="true"] .trilho{outline:1px solid var(--line);outline-offset:2px}
+
+/* dia a dia */
+.dias{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:14px 12px 10px}
+.colunas{display:flex;align-items:flex-end;gap:2px;height:96px}
+.col{flex:1;min-width:0;display:flex;align-items:flex-end;height:100%;
+  background:none;border:0;padding:0;cursor:pointer}
+.col i{display:block;width:100%;background:var(--g-neutro);border-radius:3px 3px 0 0;
+  min-height:2px;transition:height .4s cubic-bezier(.2,.8,.2,1)}
+.col.hoje i{background:var(--ok)}
+.col[aria-pressed="true"] i{background:var(--txt)}
+.eixo{display:flex;justify-content:space-between;color:var(--mut);
+  font-size:10px;margin-top:8px;font-variant-numeric:tabular-nums}
+.diainfo{margin-top:8px;font-size:12px;color:var(--mut);min-height:18px}
+.diainfo b{color:var(--txt);font-variant-numeric:tabular-nums}
+
+.vazio{color:var(--mut);font-size:13px;padding:14px 0;line-height:1.5}
+.legenda{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;
+  font-size:11px;color:var(--mut)}
+.legenda i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  margin-right:5px;vertical-align:-1px}
 </style>
 </head>
 <body>
@@ -115,58 +210,121 @@ input:focus,select:focus{border-color:var(--accent)}
     Pede ao Tiago para te convidar pelo teu email.
   </div>
 
-  <div id="formWrap">
-    <div class="hero">
-      <div class="lbl">Gasto de hoje</div>
-      <div class="val" id="totalHoje">€ 0,00</div>
-      <div class="split" id="split"></div>
+  <!-- ============ ECRÃ: LANÇAR ============ -->
+  <section id="ecraLancar">
+    <div id="formWrap">
+      <div class="hero">
+        <div class="lbl">Gasto de hoje</div>
+        <div class="val" id="totalHoje">€ 0,00</div>
+        <div class="split" id="split"></div>
+      </div>
+
+      <div class="lbl2">Tipo de gasto</div>
+      <div class="chips" id="cats"></div>
+
+      <div class="lbl2">Valor</div>
+      <input id="valor" class="valor" inputmode="decimal" placeholder="0,00">
+
+      <div class="lbl2" id="lblOnde">Onde</div>
+      <input id="onde" list="ondeList" placeholder="Onde">
+      <datalist id="ondeList"></datalist>
+
+      <div class="lbl2" id="lblExtra">Categoria</div>
+      <select id="extra"></select>
+
+      <div id="litrosWrap" class="hide">
+        <div class="lbl2">Litros</div>
+        <input id="litros" inputmode="decimal" placeholder="ex. 42,5">
+      </div>
+
+      <div id="pessoasWrap" class="hide">
+        <div class="lbl2">Nº de pessoas</div>
+        <input id="pessoas" inputmode="numeric" placeholder="ex. 4">
+      </div>
+
+      <div class="lbl2">Pagamento</div>
+      <div class="chips" id="pags"></div>
+
+      <div class="lbl2">Nota e data</div>
+      <div class="row">
+        <input id="nota" placeholder="opcional">
+        <input id="data" type="date">
+      </div>
+
+      <label class="pago">
+        <input id="pago" type="checkbox" checked>
+        Já está pago
+      </label>
+
+      <button id="guardar" class="btn">Guardar lançamento</button>
+
+      <div class="hist">
+        <div class="lbl2" style="margin-top:0">Últimos lançamentos</div>
+        <div id="hist"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ECRÃ: MÊS ============ -->
+  <section id="ecraMes" class="hide">
+    <div class="mesnav">
+      <button id="mesAnt" aria-label="Mês anterior">‹</button>
+      <div class="tit">
+        <b id="mesNome">—</b>
+        <span id="mesSub"></span>
+      </div>
+      <button id="mesSeg" aria-label="Mês seguinte">›</button>
     </div>
 
-    <div class="lbl2">Tipo de gasto</div>
-    <div class="chips" id="cats"></div>
-
-    <div class="lbl2">Valor</div>
-    <input id="valor" class="valor" inputmode="decimal" placeholder="0,00">
-
-    <div class="lbl2" id="lblOnde">Onde</div>
-    <input id="onde" list="ondeList" placeholder="Onde">
-    <datalist id="ondeList"></datalist>
-
-    <div class="lbl2" id="lblExtra">Categoria</div>
-    <select id="extra"></select>
-
-    <div id="litrosWrap" class="hide">
-      <div class="lbl2">Litros</div>
-      <input id="litros" inputmode="decimal" placeholder="ex. 42,5">
+    <div class="painel">
+      <div class="ringwrap">
+        <svg viewBox="0 0 132 132" role="img" aria-labelledby="ringTit">
+          <title id="ringTit">Progresso do mês</title>
+          <circle class="trilho" cx="66" cy="66" r="57"></circle>
+          <circle id="ringArco" class="arco" cx="66" cy="66" r="57"
+                  stroke-dasharray="358" stroke-dashoffset="358"></circle>
+        </svg>
+        <div class="ringtxt">
+          <b id="mesTotal">€ 0,00</b>
+          <span id="mesPct"></span>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="lin"><span>Por pagar</span><b id="mesPend">€ 0,00</b></div>
+        <div class="lin"><span>Média por dia</span><b id="mesMedia">€ 0,00</b></div>
+        <div class="lin"><span>Lançamentos</span><b id="mesN">0</b></div>
+        <button id="defOrc" class="linkbtn">definir orçamento</button>
+      </div>
     </div>
 
-    <div id="pessoasWrap" class="hide">
-      <div class="lbl2">Nº de pessoas</div>
-      <input id="pessoas" inputmode="numeric" placeholder="ex. 4">
+    <div class="cmp" id="mesCmp"></div>
+
+    <div class="lbl2">Por categoria <span class="aux" id="auxCat">toca para filtrar</span></div>
+    <div id="mesCats" class="barras"></div>
+
+    <div class="lbl2">Por pessoa</div>
+    <div id="mesPessoas" class="barras"></div>
+
+    <div class="lbl2">Dia a dia</div>
+    <div class="dias">
+      <div class="colunas" id="mesDias"></div>
+      <div class="eixo" id="mesEixo"></div>
+      <div class="diainfo" id="mesDiaInfo">Toca numa barra para ver o dia.</div>
     </div>
 
-    <div class="lbl2">Pagamento</div>
-    <div class="chips" id="pags"></div>
+    <div class="lbl2">Por método de pagamento</div>
+    <div id="mesPags" class="barras"></div>
 
-    <div class="lbl2">Nota e data</div>
-    <div class="row">
-      <input id="nota" placeholder="opcional">
-      <input id="data" type="date">
-    </div>
-
-    <label class="pago">
-      <input id="pago" type="checkbox" checked>
-      Já está pago
-    </label>
-
-    <button id="guardar" class="btn">Guardar lançamento</button>
-
-    <div class="hist">
-      <div class="lbl2" style="margin-top:0">Últimos lançamentos</div>
-      <div id="hist"></div>
-    </div>
-  </div>
+    <div class="lbl2" id="mesListaTit">Lançamentos do mês</div>
+    <div id="mesLista"></div>
+  </section>
 </div>
+
+<!-- separadores ------------------------------------------------------ -->
+<nav class="tabs hide" id="tabs">
+  <button data-ecra="lancar" aria-current="true">Lançar</button>
+  <button data-ecra="mes" aria-current="false">Mês</button>
+</nav>
 
 <div id="toast" class="toast"></div>
 <script type="module" src="./app.js"></script>

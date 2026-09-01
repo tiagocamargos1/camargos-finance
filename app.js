@@ -70,8 +70,21 @@ let estado = {
   pagamento: null,
   listas: {},
   membros: {},
-  unsubscribes: []
+  unsubscribes: [],
+  // ecrã do mês
+  ecra: 'lancar',
+  mesRef: null,        // primeiro dia do mês que está a ser mostrado
+  mesEntradas: [],     // lançamentos desse mês
+  mesAnteriorCents: 0, // total do mês anterior (mês inteiro)
+  mesAnteriorAteHoje: 0,
+  orcamentoCents: 0,
+  filtroCat: null,
+  filtroDia: null,
+  unsubMes: null
 };
+
+const MESES_PT = ['janeiro','fevereiro','março','abril','maio','junho',
+  'julho','agosto','setembro','outubro','novembro','dezembro'];
 
 /* ------------------------------------------------------------------ */
 /* Utilitários                                                         */
@@ -183,6 +196,7 @@ async function arrancarAgregado(user) {
   estado.hid = hid;
   const hsnap = await getDoc(doc(db, 'households', hid));
   estado.souDono = hsnap.exists() && hsnap.data().ownerUid === user.uid;
+  estado.orcamentoCents = (hsnap.exists() && hsnap.data().monthlyBudgetCents) || 0;
   $('#casa').textContent = hsnap.exists() ? hsnap.data().name : '—';
   document.body.classList.toggle('dono', estado.souDono);
 
@@ -192,6 +206,10 @@ async function arrancarAgregado(user) {
   desenharPagamentos();
   ligarResumoDoDia();
   ligarUltimos();
+
+  $('#tabs').classList.remove('hide');
+  if (!estado.mesRef) estado.mesRef = primeiroDiaDoMes(new Date());
+  ligarMes();
 }
 
 async function criarCasa(user) {
@@ -424,6 +442,318 @@ function ligarUltimos() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Ecrã do mês                                                         */
+/* ------------------------------------------------------------------ */
+
+const COR_CAT = {
+  mercado: '--g-mercado', restaurante: '--g-restaurante',
+  combustivel: '--g-combustivel', compra: '--g-compra', viaverde: '--g-viaverde'
+};
+
+function primeiroDiaDoMes(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function mesSeguinteDe(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+function diasNoMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); }
+function mesmoMes(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
+function nomeMes(d) { return MESES_PT[d.getMonth()] + ' ' + d.getFullYear(); }
+
+function mostrarEcra(nome) {
+  estado.ecra = nome;
+  $('#ecraLancar').classList.toggle('hide', nome !== 'lancar');
+  $('#ecraMes').classList.toggle('hide', nome !== 'mes');
+  $$('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.ecra === nome)));
+  window.scrollTo(0, 0);
+}
+
+// O dia até onde faz sentido comparar: hoje, se estamos no mês corrente.
+function diaDeCorte() {
+  const hoje = new Date();
+  return mesmoMes(hoje, estado.mesRef) ? hoje.getDate() : diasNoMes(estado.mesRef);
+}
+
+function ligarMes() {
+  if (estado.unsubMes) { estado.unsubMes(); estado.unsubMes = null; }
+  estado.filtroCat = null;
+  estado.filtroDia = null;
+
+  const ini = estado.mesRef;
+  const fim = mesSeguinteDe(ini);
+  const q = query(
+    collection(db, 'households', estado.hid, 'entries'),
+    where('date', '>=', Timestamp.fromDate(ini)),
+    where('date', '<', Timestamp.fromDate(fim))
+  );
+  estado.unsubMes = onSnapshot(q, (snap) => {
+    estado.mesEntradas = [];
+    snap.forEach((d) => estado.mesEntradas.push(Object.assign({ id: d.id }, d.data())));
+    desenharMes();
+  }, (e) => console.error('mes', e));
+
+  carregarMesAnterior();
+}
+
+async function carregarMesAnterior() {
+  const ini = new Date(estado.mesRef.getFullYear(), estado.mesRef.getMonth() - 1, 1);
+  const fim = estado.mesRef;
+  estado.mesAnteriorCents = 0;
+  estado.mesAnteriorAteHoje = 0;
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'households', estado.hid, 'entries'),
+      where('date', '>=', Timestamp.fromDate(ini)),
+      where('date', '<', Timestamp.fromDate(fim))
+    ));
+    const corte = diaDeCorte();
+    snap.forEach((d) => {
+      const e = d.data();
+      const c = e.amountCents || 0;
+      estado.mesAnteriorCents += c;
+      const dia = (e.date && e.date.toDate) ? e.date.toDate().getDate() : 1;
+      if (dia <= corte) estado.mesAnteriorAteHoje += c;
+    });
+  } catch (err) {
+    console.error('mes anterior', err);
+  }
+  desenharMes();
+}
+
+function barra(nome, cents, total, cor, ativo) {
+  const pct = total > 0 ? Math.round((cents / total) * 100) : 0;
+  const b = document.createElement('button');
+  b.className = 'bar';
+  b.setAttribute('aria-pressed', String(!!ativo));
+  b.innerHTML =
+    `<span class="top"><span class="nm">${nome}</span>` +
+    `<span class="vl">${eur(cents)}</span><span class="pc">${pct}%</span></span>` +
+    `<span class="trilho"><span class="fill" style="width:${total > 0 ? Math.max(pct, cents > 0 ? 2 : 0) : 0}%;background:${cor}"></span></span>`;
+  return b;
+}
+
+function desenharMes() {
+  if (!estado.mesRef) return;
+
+  const ents = estado.mesEntradas;
+  const total = ents.reduce((s, e) => s + (e.amountCents || 0), 0);
+  const pendente = ents.filter((e) => !e.paid).reduce((s, e) => s + (e.amountCents || 0), 0);
+  const corte = diaDeCorte();
+
+  $('#mesNome').textContent = nomeMes(estado.mesRef).replace(/^./, (c) => c.toUpperCase());
+  $('#mesSub').textContent = mesmoMes(new Date(), estado.mesRef)
+    ? 'mês a decorrer · dia ' + corte + ' de ' + diasNoMes(estado.mesRef)
+    : 'mês fechado';
+  $('#mesSeg').disabled = mesmoMes(estado.mesRef, new Date());
+
+  $('#mesTotal').textContent = eur(total);
+  $('#mesPend').textContent = eur(pendente);
+  $('#mesMedia').textContent = eur(corte > 0 ? Math.round(total / corte) : 0);
+  $('#mesN').textContent = String(ents.length);
+  $('#defOrc').textContent = estado.orcamentoCents
+    ? 'orçamento: ' + eur(estado.orcamentoCents) + ' — alterar'
+    : 'definir orçamento';
+  $('#defOrc').classList.toggle('hide', !estado.souDono && !estado.orcamentoCents);
+
+  // --- anel -------------------------------------------------------
+  const VOLTA = 358;
+  let fracao = 0, legenda = '';
+  if (estado.orcamentoCents > 0) {
+    fracao = total / estado.orcamentoCents;
+    legenda = Math.round(fracao * 100) + '% de ' + eur(estado.orcamentoCents);
+  } else if (estado.mesAnteriorCents > 0) {
+    fracao = total / estado.mesAnteriorCents;
+    legenda = Math.round(fracao * 100) + '% do mês anterior';
+  } else {
+    fracao = 0;
+    legenda = 'sem termo de comparação';
+  }
+  const arco = $('#ringArco');
+  arco.setAttribute('stroke-dashoffset', String(VOLTA * (1 - Math.min(fracao, 1))));
+  // ritmo: onde deveríamos ir se o mês corresse a direito
+  const ritmo = corte / diasNoMes(estado.mesRef);
+  const dentro = fracao <= ritmo + 0.05 || fracao === 0;
+  arco.style.stroke = fracao > 1 ? 'var(--erro)' : (dentro ? 'var(--ok)' : 'var(--mercado)');
+  $('#mesPct').textContent = legenda;
+
+  // --- comparação -------------------------------------------------
+  const cmp = $('#mesCmp');
+  if (estado.mesAnteriorAteHoje > 0) {
+    const dif = total - estado.mesAnteriorAteHoje;
+    const pc = Math.round((dif / estado.mesAnteriorAteHoje) * 100);
+    const cls = dif > 0 ? 'sobe' : 'desce';
+    const seta = dif > 0 ? '▲' : '▼';
+    const abertura = mesmoMes(new Date(), estado.mesRef)
+      ? 'No mesmo ponto do mês passado tinhas gasto'
+      : 'No mês anterior gastaste';
+    cmp.innerHTML = `${abertura} <b>${eur(estado.mesAnteriorAteHoje)}</b>. ` +
+      `Estás <span class="${cls}">${seta} ${Math.abs(pc)}%</span> (${dif > 0 ? '+' : '−'}${eur(Math.abs(dif))}).`;
+  } else {
+    cmp.textContent = 'Ainda não há mês anterior para comparar.';
+  }
+
+  // --- por categoria ----------------------------------------------
+  const porCat = {};
+  CATEGORIAS.forEach((c) => { porCat[c.id] = 0; });
+  ents.forEach((e) => { porCat[e.type] = (porCat[e.type] || 0) + (e.amountCents || 0); });
+  const wc = $('#mesCats');
+  wc.innerHTML = '';
+  CATEGORIAS.forEach((c) => {
+    const b = barra(c.nome, porCat[c.id] || 0, total,
+      `var(${COR_CAT[c.id] || '--g-neutro'})`, estado.filtroCat === c.id);
+    b.onclick = () => {
+      estado.filtroCat = (estado.filtroCat === c.id ? null : c.id);
+      desenharMes();
+    };
+    wc.appendChild(b);
+  });
+
+  // --- por pessoa --------------------------------------------------
+  const porPessoa = {};
+  ents.forEach((e) => { porPessoa[e.who] = (porPessoa[e.who] || 0) + (e.amountCents || 0); });
+  const wp = $('#mesPessoas');
+  wp.innerHTML = '';
+  Object.entries(porPessoa).sort((a, b) => b[1] - a[1]).forEach(([uid, c], i) => {
+    const nome = (estado.membros[uid] && estado.membros[uid].displayName) || 'Sem identificação';
+    wp.appendChild(barra(nome.split(' ')[0], c, total,
+      i === 0 ? 'var(--g-p1)' : 'var(--g-p2)', false));
+  });
+  if (!Object.keys(porPessoa).length) wp.innerHTML = '<div class="vazio">Sem lançamentos.</div>';
+
+  // --- dia a dia ---------------------------------------------------
+  const nd = diasNoMes(estado.mesRef);
+  const porDia = new Array(nd + 1).fill(0);
+  ents.forEach((e) => {
+    const d = (e.date && e.date.toDate) ? e.date.toDate().getDate() : 1;
+    porDia[d] += (e.amountCents || 0);
+  });
+  const maxDia = Math.max.apply(null, porDia.concat([1]));
+  const wd = $('#mesDias');
+  wd.innerHTML = '';
+  const hoje = new Date();
+  for (let d = 1; d <= nd; d++) {
+    const col = document.createElement('button');
+    col.className = 'col' + (mesmoMes(hoje, estado.mesRef) && hoje.getDate() === d ? ' hoje' : '');
+    col.setAttribute('aria-pressed', String(estado.filtroDia === d));
+    col.setAttribute('aria-label', d + ' — ' + eur(porDia[d]));
+    col.innerHTML = `<i style="height:${Math.round((porDia[d] / maxDia) * 100)}%"></i>`;
+    col.onclick = () => {
+      estado.filtroDia = (estado.filtroDia === d ? null : d);
+      desenharMes();
+    };
+    wd.appendChild(col);
+  }
+  const eixo = $('#mesEixo');
+  eixo.innerHTML = '';
+  [1, 8, 15, 22, nd].forEach((d) => {
+    const s = document.createElement('span');
+    s.textContent = String(d);
+    eixo.appendChild(s);
+  });
+  $('#mesDiaInfo').innerHTML = estado.filtroDia
+    ? `Dia ${estado.filtroDia}: <b>${eur(porDia[estado.filtroDia])}</b> — toca outra vez para limpar.`
+    : 'Toca numa barra para ver o dia.';
+
+  // --- por método de pagamento -------------------------------------
+  const porPag = {};
+  ents.forEach((e) => {
+    const k = e.paymentMethod || 'Sem método';
+    porPag[k] = (porPag[k] || 0) + (e.amountCents || 0);
+  });
+  const wpg = $('#mesPags');
+  wpg.innerHTML = '';
+  const pags = Object.entries(porPag).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  pags.forEach(([k, c]) => wpg.appendChild(barra(k, c, total, 'var(--g-neutro)', false)));
+  if (!pags.length) wpg.innerHTML = '<div class="vazio">Sem lançamentos.</div>';
+
+  // --- lista -------------------------------------------------------
+  desenharListaDoMes();
+}
+
+function desenharListaDoMes() {
+  const wrap = $('#mesLista');
+  wrap.innerHTML = '';
+
+  let lista = estado.mesEntradas.slice();
+  if (estado.filtroCat) lista = lista.filter((e) => e.type === estado.filtroCat);
+  if (estado.filtroDia) {
+    lista = lista.filter((e) => (e.date && e.date.toDate ? e.date.toDate().getDate() : 0) === estado.filtroDia);
+  }
+  lista.sort((a, b) => {
+    const da = a.date && a.date.toMillis ? a.date.toMillis() : 0;
+    const db_ = b.date && b.date.toMillis ? b.date.toMillis() : 0;
+    return db_ - da;
+  });
+
+  const filtros = [];
+  if (estado.filtroCat) {
+    const c = CATEGORIAS.find((x) => x.id === estado.filtroCat);
+    filtros.push(c ? c.nome.toLowerCase() : estado.filtroCat);
+  }
+  if (estado.filtroDia) filtros.push('dia ' + estado.filtroDia);
+  $('#mesListaTit').textContent = filtros.length
+    ? 'Lançamentos · ' + filtros.join(' · ')
+    : 'Lançamentos do mês';
+
+  if (!lista.length) {
+    wrap.innerHTML = '<div class="vazio">Nada aqui. Os lançamentos aparecem assim que forem feitos.</div>';
+    return;
+  }
+
+  lista.slice(0, 60).forEach((e) => {
+    const cat = CATEGORIAS.find((c) => c.id === e.type);
+    const quem = (estado.membros[e.who] && estado.membros[e.who].displayName) || '';
+    const dt = (e.date && e.date.toDate) ? e.date.toDate() : null;
+    const dia = dt ? String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0') : '';
+    const linha = document.createElement('div');
+    linha.className = 'it';
+    linha.innerHTML =
+      `<span class="pt" style="background:var(${COR_CAT[e.type] || '--g-neutro'})"></span>` +
+      `<span class="l">${dia} · ${(cat ? cat.nome : e.type)}${e.place ? ' · ' + e.place : ''}` +
+      `<em>${quem ? quem.split(' ')[0] : ''}${e.paid ? '' : ' · pendente'}` +
+      `${e.paymentMethod ? ' · ' + e.paymentMethod : ''}</em></span>` +
+      `<b>${eur(e.amountCents || 0)}</b>`;
+    if (estado.souDono) {
+      const x = document.createElement('button');
+      x.className = 'del';
+      x.textContent = '×';
+      x.title = 'Apagar';
+      x.onclick = async () => {
+        if (!confirm('Apagar este lançamento?')) return;
+        try {
+          await deleteDoc(doc(db, 'households', estado.hid, 'entries', e.id));
+          toast('Apagado.');
+        } catch (err) { toast('Não consegui apagar.', true); }
+      };
+      linha.appendChild(x);
+    }
+    wrap.appendChild(linha);
+  });
+}
+
+async function definirOrcamento() {
+  if (!estado.souDono) { toast('Só o dono define o orçamento.', true); return; }
+  const atual = estado.orcamentoCents ? (estado.orcamentoCents / 100).toString().replace('.', ',') : '';
+  const txt = prompt('Orçamento mensal em euros (deixa vazio para tirar):', atual);
+  if (txt === null) return;
+  const cents = paraCentimos(txt);
+  try {
+    await updateDoc(doc(db, 'households', estado.hid), { monthlyBudgetCents: cents });
+    estado.orcamentoCents = cents;
+    desenharMes();
+    toast(cents ? 'Orçamento: ' + eur(cents) : 'Orçamento removido.');
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui gravar o orçamento.', true);
+  }
+}
+
+function mudarMes(delta) {
+  const novo = new Date(estado.mesRef.getFullYear(), estado.mesRef.getMonth() + delta, 1);
+  if (novo > primeiroDiaDoMes(new Date())) return;
+  estado.mesRef = novo;
+  estado.mesEntradas = [];
+  desenharMes();
+  ligarMes();
+}
+
+/* ------------------------------------------------------------------ */
 /* Ligações                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -433,6 +763,14 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#guardar').onclick = guardar;
   $('#sair').onclick = () => signOut(auth);
   $('#valor').addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); });
+
+  $$('#tabs button').forEach((b) => { b.onclick = () => mostrarEcra(b.dataset.ecra); });
+  $('#mesAnt').onclick = () => mudarMes(-1);
+  $('#mesSeg').onclick = () => mudarMes(1);
+  $('#defOrc').onclick = definirOrcamento;
+
+  const ecraInicial = new URLSearchParams(location.search).get('ecra');
+  if (ecraInicial === 'mes') mostrarEcra('mes');
 
   const rede = () => {
     $('#offline').classList.toggle('hide', navigator.onLine);
