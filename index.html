@@ -17,16 +17,15 @@
   --bg:#0F1720; --card:#182430; --card2:#121C26; --line:#25384A;
   --txt:#E9EFF5; --mut:#8CA1B4; --ok:#22C55E; --erro:#F87171;
 
-  /* Cores da interface (chips, botões) — as mesmas das abas da planilha.
-     Cada categoria traz TRES valores: o fundo, a cor do texto por cima e
-     uma cor de contorno. As duas ultimas existem porque duas destas cores
-     sao escuras: com texto escuro por cima ficavam ilegiveis, e sem
-     contorno o chip selecionado nao se distinguia do cartao.
-     Restaurantes usa #4B5F76 — vizinho do #1F2937 da planilha — porque na
-     planilha partilha a cor com Mercado, e aqui dois chips iguais tiram a
-     unica pista de qual esta escolhido. */
-  --mercado:#1F2937;      --mercado-txt:#FFFFFF;      --mercado-borda:#4B5F76;
-  --restaurantes:#4B5F76; --restaurantes-txt:#FFFFFF; --restaurantes-borda:#6B819A;
+  /* Cores da interface (chips, botões) — as MESMAS das abas da planilha,
+     as cinco. Cada categoria traz TRES valores: o fundo, a cor do texto
+     por cima e a cor do contorno.
+     O texto muda com a cor: escuro sobre as claras, branco sobre o
+     #1F2937 do Restaurantes, que de outra forma ficaria ilegivel. O
+     contorno existe pela mesma razao — sobre fundo escuro, o #1F2937
+     sozinho nao chega para dizer «este chip esta escolhido». */
+  --mercado:#F97316;      --mercado-txt:#0B1219;      --mercado-borda:#F97316;
+  --restaurantes:#1F2937; --restaurantes-txt:#FFFFFF; --restaurantes-borda:#4B5F76;
   --combustivel:#2563EB;  --combustivel-txt:#FFFFFF;  --combustivel-borda:#2563EB;
   --compras:#7C3AED;      --compras-txt:#FFFFFF;      --compras-borda:#7C3AED;
   --viaverde:#10B981;     --viaverde-txt:#08130E;     --viaverde-borda:#10B981;
