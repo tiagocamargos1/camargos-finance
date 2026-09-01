@@ -86,7 +86,19 @@ let estado = {
   pagasMes: {},        // households/{hid}/months/{AAAA-MM}/bills
   fixEdicao: false,
   unsubFixas: null,
-  unsubPagas: null
+  unsubPagas: null,
+  // leitura de talões
+  ocrUrl: '',
+  recibo: null
+};
+
+// O que a leitura do talão devolve na chave «aba», e o tipo correspondente aqui.
+const ABA_PARA_TIPO = {
+  'VIA VERDE': 'viaverde', 'VIAVERDE': 'viaverde',
+  'MERCADO': 'mercado',
+  'COMBUSTÍVEL': 'combustivel', 'COMBUSTIVEL': 'combustivel',
+  'RESTAURANTES': 'restaurante', 'RESTAURANTE': 'restaurante',
+  'COMPRAS': 'compra', 'COMPRA': 'compra'
 };
 
 /* As contas fixas de CONTAS PORTUGAL, para a importação de uma vez só.
@@ -236,6 +248,10 @@ async function arrancarAgregado(user) {
   const hsnap = await getDoc(doc(db, 'households', hid));
   estado.souDono = hsnap.exists() && hsnap.data().ownerUid === user.uid;
   estado.orcamentoCents = (hsnap.exists() && hsnap.data().monthlyBudgetCents) || 0;
+  // O URL da leitura de talões vem do Firestore, não do código — assim não
+  // anda a passear pelo repositório público.
+  estado.ocrUrl = (hsnap.exists() && hsnap.data().ocrUrl) || '';
+  $('#btFoto').classList.toggle('hide', !estado.ocrUrl);
   $('#casa').textContent = hsnap.exists() ? hsnap.data().name : '—';
   document.body.classList.toggle('dono', estado.souDono);
 
@@ -481,6 +497,133 @@ function ligarUltimos() {
     });
   }, (e) => console.error('hist', e));
   estado.unsubscribes.push(un);
+}
+
+/* ------------------------------------------------------------------ */
+/* Leitura de talões por foto                                          */
+/* ------------------------------------------------------------------ */
+
+/** Reduz a foto antes de a enviar — 1600 px chegam para o OCR. */
+function reduzirImagem(ficheiro, max) {
+  return new Promise(function (resolve, reject) {
+    const fr = new FileReader();
+    const img = new Image();
+    fr.onerror = reject;
+    img.onerror = function () { reject(new Error('Não consegui abrir a imagem.')); };
+    fr.onload = function () { img.src = fr.result; };
+    img.onload = function () {
+      const escala = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * escala);
+      c.height = Math.round(img.height * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    fr.readAsDataURL(ficheiro);
+  });
+}
+
+async function lerTalao(ficheiro) {
+  if (!ficheiro) return;
+  if (!estado.ocrUrl) { toast('A leitura de talões ainda não está ligada.', true); return; }
+
+  const bt = $('#btFoto');
+  bt.disabled = true;
+  bt.textContent = 'A ler o talão…';
+
+  try {
+    const dataUrl = await reduzirImagem(ficheiro, 1600);
+    const base = dataUrl.split(',')[1];
+    const idToken = await estado.user.getIdToken();
+
+    // text/plain de propósito: evita o preflight, que o Apps Script não responde.
+    const res = await fetch(estado.ocrUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accao: 'recibo', idToken: idToken, base: base, mime: 'image/jpeg' })
+    });
+    const r = await res.json();
+
+    if (!r || r.ok === false) {
+      toast(r && r.erro ? r.erro : 'Não consegui ler o talão.', true);
+      return;
+    }
+    estado.recibo = r;
+    mostrarRecibo(r);
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui ler o talão: ' + (e.message || e), true);
+  } finally {
+    bt.disabled = false;
+    bt.textContent = 'Ler talão por foto';
+    $('#fileFoto').value = '';
+  }
+}
+
+function mostrarRecibo(r) {
+  const linha = (rot, v) => v ? `<div class="lin"><span>${rot}</span><b>${v}</b></div>` : '';
+  const cat = ABA_PARA_TIPO[String(r.aba || '').toUpperCase()];
+  const nome = cat ? (CATEGORIAS.find((c) => c.id === cat) || {}).nome : '';
+
+  $('#reciboTxt').innerHTML =
+    linha('Valor', r.valor ? r.valor + ' €' : '') +
+    linha('Data', r.data) +
+    linha('Onde', r.onde) +
+    linha('Pagamento', r.pagamento) +
+    linha('Tipo', nome || r.aba) +
+    linha('Categoria', r.categoria) +
+    linha('Litros', r.litros) +
+    (r.itens ? `<div class="art">${String(r.itens).slice(0, 300)}</div>` : '');
+
+  $('#reciboBox').classList.remove('hide');
+  $('#reciboBox').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function usarRecibo() {
+  const r = estado.recibo;
+  if (!r) return;
+
+  const cat = ABA_PARA_TIPO[String(r.aba || '').toUpperCase()];
+  if (cat) { estado.categoria = cat; desenharCategorias(); }
+
+  if (r.valor) $('#valor').value = String(r.valor).replace('.', ',');
+  if (r.onde) $('#onde').value = r.onde;
+  // A categoria lida pode não bater certo com a lista da app
+  // («Casa & Decoração» na folha, «Casa» aqui) — tenta pela primeira palavra.
+  if (r.categoria) {
+    const sel = $('#extra');
+    const opcoes = Array.from(sel.options).map((o) => o.value).filter(Boolean);
+    const alvo = String(r.categoria).toLowerCase();
+    const igual = opcoes.find((o) => o.toLowerCase() === alvo);
+    const parecida = igual || opcoes.find((o) =>
+      o.toLowerCase().split(/[^a-zà-ú]+/)[0] === alvo.split(/[^a-zà-ú]+/)[0]);
+    if (parecida) sel.value = parecida;
+  }
+  if (r.litros) $('#litros').value = r.litros;
+  if (r.pessoas) $('#pessoas').value = r.pessoas;
+
+  // A data vem como DD/MM/AAAA; o input quer AAAA-MM-DD.
+  const d = String(r.data || '').match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (d) {
+    const ano = d[3].length === 2 ? '20' + d[3] : d[3];
+    $('#data').value = ano + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[1]).slice(-2);
+  }
+
+  if (r.pagamento) {
+    const lista = estado.listas.pagamentos || LISTAS_INICIAIS.pagamentos;
+    const alvo = lista.find((p) => p.toLowerCase() === String(r.pagamento).toLowerCase());
+    if (alvo) { estado.pagamento = alvo; desenharPagamentos(); }
+  }
+
+  esconderRecibo();
+  toast('Confere e carrega em guardar.');
+  $('#valor').focus();
+}
+
+function esconderRecibo() {
+  estado.recibo = null;
+  $('#reciboBox').classList.add('hide');
+  $('#reciboTxt').innerHTML = '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -1069,6 +1212,11 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#defOrc').onclick = definirOrcamento;
   $('#fixNova').onclick = novaContaFixa;
   $('#fixImportar').onclick = importarFixasDaPlanilha;
+
+  $('#btFoto').onclick = () => $('#fileFoto').click();
+  $('#fileFoto').onchange = (ev) => lerTalao(ev.target.files && ev.target.files[0]);
+  $('#reciboUsar').onclick = usarRecibo;
+  $('#reciboFora').onclick = esconderRecibo;
 
   const ecraInicial = new URLSearchParams(location.search).get('ecra');
   if (ecraInicial === 'mes' || ecraInicial === 'fixas') mostrarEcra(ecraInicial);
