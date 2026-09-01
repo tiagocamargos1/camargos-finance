@@ -771,11 +771,22 @@ function usarRecibo() {
   if (r.litros) $('#litros').value = r.litros;
   if (r.pessoas) $('#pessoas').value = r.pessoas;
 
-  // A data vem como DD/MM/AAAA; o input quer AAAA-MM-DD.
-  const d = String(r.data || '').match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
-  if (d) {
-    const ano = d[3].length === 2 ? '20' + d[3] : d[3];
-    $('#data').value = ano + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[1]).slice(-2);
+  // A data pode vir em AAAA-MM-DD (e o que o Gemini devolve) ou em DD/MM/AAAA.
+  //
+  // ⚠️ Testar o formato ISO PRIMEIRO, e ancorar as duas expressoes no inicio.
+  // A expressao de DD/MM/AAAA, sem ancora, casa com o FIM de uma data ISO:
+  // «2026-08-14» dava 26/08/14, e o «14» virava o ano 2014. Foi assim que um
+  // talao de 14/08/2026 foi parar a agosto de 2014 — sem erro nenhum a vista,
+  // so um gasto que desaparecia do mes.
+  const bruto = String(r.data || '').trim();
+  const iso = bruto.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  const pt  = bruto.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if (iso) {
+    $('#data').value =
+      iso[1] + '-' + ('0' + iso[2]).slice(-2) + '-' + ('0' + iso[3]).slice(-2);
+  } else if (pt) {
+    const ano = pt[3].length === 2 ? '20' + pt[3] : pt[3];
+    $('#data').value = ano + '-' + ('0' + pt[2]).slice(-2) + '-' + ('0' + pt[1]).slice(-2);
   }
 
   if (r.pagamento) {
