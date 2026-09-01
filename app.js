@@ -353,7 +353,10 @@ function desenharCategorias() {
 
 function aplicarCategoria() {
   const c = CATEGORIAS.find((x) => x.id === estado.categoria);
-  document.documentElement.style.setProperty('--accent', `var(${c.cor})`);
+  const raiz = document.documentElement.style;
+  raiz.setProperty('--accent', `var(${c.cor})`);
+  raiz.setProperty('--accent-txt', `var(${c.cor}-txt)`);
+  raiz.setProperty('--accent-borda', `var(${c.cor}-borda)`);
   $('#lblOnde').textContent = c.onde.toUpperCase();
   $('#onde').placeholder = c.onde;
   $('#lblExtra').textContent = c.extra.toUpperCase();

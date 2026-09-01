@@ -17,10 +17,21 @@
   --bg:#0F1720; --card:#182430; --card2:#121C26; --line:#25384A;
   --txt:#E9EFF5; --mut:#8CA1B4; --ok:#22C55E; --erro:#F87171;
 
-  /* cores da interface (chips, botões) */
-  --mercado:#F59E0B; --restaurantes:#34D399; --compras:#A78BFA;
-  --combustivel:#38BDF8; --viaverde:#FB7185;
-  --accent:var(--mercado);
+  /* Cores da interface (chips, botões) — as mesmas das abas da planilha.
+     Cada categoria traz TRES valores: o fundo, a cor do texto por cima e
+     uma cor de contorno. As duas ultimas existem porque duas destas cores
+     sao escuras: com texto escuro por cima ficavam ilegiveis, e sem
+     contorno o chip selecionado nao se distinguia do cartao.
+     Restaurantes usa #4B5F76 — vizinho do #1F2937 da planilha — porque na
+     planilha partilha a cor com Mercado, e aqui dois chips iguais tiram a
+     unica pista de qual esta escolhido. */
+  --mercado:#1F2937;      --mercado-txt:#FFFFFF;      --mercado-borda:#4B5F76;
+  --restaurantes:#4B5F76; --restaurantes-txt:#FFFFFF; --restaurantes-borda:#6B819A;
+  --combustivel:#2563EB;  --combustivel-txt:#FFFFFF;  --combustivel-borda:#2563EB;
+  --compras:#7C3AED;      --compras-txt:#FFFFFF;      --compras-borda:#7C3AED;
+  --viaverde:#10B981;     --viaverde-txt:#08130E;     --viaverde-borda:#10B981;
+  --accent:var(--mercado); --accent-txt:var(--mercado-txt);
+  --accent-borda:var(--mercado-borda);
 
   /* cores dos gráficos — validadas para fundo escuro e daltonismo
      (banda de luminosidade, separação protan/deutan e contraste) */
@@ -59,12 +70,13 @@ h1 button{margin-left:auto;background:none;border:0;color:var(--mut);
   border:1px solid var(--line);background:var(--card2);color:var(--txt);
   font-size:14px;font-weight:600;text-align:center;cursor:pointer;font-family:inherit}
 .chip.sm{min-width:calc(33.33% - 6px);font-size:13px;padding:11px 6px;font-weight:500}
-.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#0B1219}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent-borda);
+  color:var(--accent-txt);box-shadow:inset 0 0 0 2px var(--accent-borda)}
 
 input,select,textarea{width:100%;padding:14px;border-radius:12px;
   border:1px solid var(--line);background:var(--card2);color:var(--txt);
   font-size:16px;font-family:inherit;outline:none}
-input:focus,select:focus{border-color:var(--accent)}
+input:focus,select:focus{border-color:var(--accent-borda)}
 .valor{font-size:30px;font-weight:700;text-align:center;letter-spacing:-.02em}
 .row{display:flex;gap:8px}
 .row>*{flex:1}
@@ -74,7 +86,8 @@ input:focus,select:focus{border-color:var(--accent)}
 .pago input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--ok)}
 
 .btn{width:100%;margin-top:20px;padding:17px;border-radius:14px;border:0;
-  background:var(--accent);color:#0B1219;font-size:17px;font-weight:700;
+  background:var(--accent);color:var(--accent-txt);border:1px solid var(--accent-borda);
+  font-size:17px;font-weight:700;
   cursor:pointer;font-family:inherit}
 .btn[disabled]{opacity:.5}
 .btn.google{background:#fff;color:#1a1a1a;display:flex;align-items:center;
