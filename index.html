@@ -177,6 +177,36 @@ input:focus,select:focus{border-color:var(--accent)}
 .diainfo b{color:var(--txt);font-variant-numeric:tabular-nums}
 
 .vazio{color:var(--mut);font-size:13px;padding:14px 0;line-height:1.5}
+
+/* ---------- contas fixas ---------- */
+.painel.vert{flex-direction:column;align-items:stretch;gap:12px}
+.lin3{display:flex;gap:10px}
+.lin3>div{flex:1;min-width:0}
+.lin3 span{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--mut);margin-bottom:3px}
+.lin3 b{font-size:17px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.trilho2{display:block;height:8px;border-radius:4px;background:var(--card2);overflow:hidden}
+.fill2{display:block;height:100%;width:0;border-radius:4px;background:var(--ok);
+  transition:width .5s cubic-bezier(.2,.8,.2,1)}
+
+.conta{display:flex;align-items:center;gap:11px;padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.conta .tick{width:26px;height:26px;flex:0 0 auto;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card2);color:var(--txt);
+  font-size:14px;line-height:1;font-family:inherit;padding:0}
+.conta .tick[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:#06210F}
+.conta .tick[disabled]{opacity:.4;cursor:default}
+.conta .nm{flex:1;min-width:0;display:flex;flex-direction:column;font-size:14px}
+.conta .nm em{color:var(--mut);font-size:12px;font-style:normal;margin-top:2px}
+.conta.paga .nm{color:var(--mut)}
+.conta .vl{font-variant-numeric:tabular-nums;font-weight:600;font-size:14px;
+  background:none;border:0;color:inherit;font-family:inherit;cursor:pointer;padding:0}
+.conta .ed{background:none;border:0;color:var(--mut);font-size:15px;cursor:pointer;
+  padding:0 2px;line-height:1}
+.diadia{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);
+  margin:16px 0 2px}
+.btn.ghost{background:var(--card2);color:var(--txt);border:1px solid var(--line);
+  font-size:15px;padding:14px}
 .legenda{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;
   font-size:11px;color:var(--mut)}
 .legenda i{display:inline-block;width:9px;height:9px;border-radius:2px;
@@ -290,16 +320,16 @@ input:focus,select:focus{border-color:var(--accent)}
         </div>
       </div>
       <div class="meta">
+        <div class="lin"><span>Gastos diários</span><b id="mesDiarios">€ 0,00</b></div>
+        <div class="lin"><span>Contas fixas</span><b id="mesFixasTot">€ 0,00</b></div>
         <div class="lin"><span>Por pagar</span><b id="mesPend">€ 0,00</b></div>
-        <div class="lin"><span>Média por dia</span><b id="mesMedia">€ 0,00</b></div>
-        <div class="lin"><span>Lançamentos</span><b id="mesN">0</b></div>
         <button id="defOrc" class="linkbtn">definir orçamento</button>
       </div>
     </div>
 
     <div class="cmp" id="mesCmp"></div>
 
-    <div class="lbl2">Por categoria <span class="aux" id="auxCat">toca para filtrar</span></div>
+    <div class="lbl2">Gastos diários por categoria <span class="aux" id="auxCat">toca para filtrar</span></div>
     <div id="mesCats" class="barras"></div>
 
     <div class="lbl2">Por pessoa</div>
@@ -318,12 +348,47 @@ input:focus,select:focus{border-color:var(--accent)}
     <div class="lbl2" id="mesListaTit">Lançamentos do mês</div>
     <div id="mesLista"></div>
   </section>
+
+  <!-- ============ ECRÃ: CONTAS FIXAS ============ -->
+  <section id="ecraFixas" class="hide">
+    <div class="mesnav">
+      <button id="fixAnt" aria-label="Mês anterior">‹</button>
+      <div class="tit">
+        <b id="fixNome">—</b>
+        <span id="fixSub">contas fixas do mês</span>
+      </div>
+      <button id="fixSeg" aria-label="Mês seguinte">›</button>
+    </div>
+
+    <div class="painel vert">
+      <div class="lin3">
+        <div><span>Previsto</span><b id="fixPrev">€ 0,00</b></div>
+        <div><span>Pago</span><b id="fixPago">€ 0,00</b></div>
+        <div><span>Por pagar</span><b id="fixFalta">€ 0,00</b></div>
+      </div>
+      <div class="trilho2"><span id="fixBarra" class="fill2"></span></div>
+    </div>
+
+    <div class="lbl2">Contas do mês <span class="aux" id="fixAux"></span></div>
+    <div id="fixLista"></div>
+
+    <div id="fixDono" class="hide">
+      <button id="fixNova" class="btn ghost">+ nova conta fixa</button>
+      <button id="fixImportar" class="linkbtn" style="margin-top:14px">
+        importar as contas da planilha
+      </button>
+    </div>
+    <div id="fixAvisoMembro" class="vazio hide">
+      Só o Tiago marca as contas fixas como pagas.
+    </div>
+  </section>
 </div>
 
 <!-- separadores ------------------------------------------------------ -->
 <nav class="tabs hide" id="tabs">
   <button data-ecra="lancar" aria-current="true">Lançar</button>
   <button data-ecra="mes" aria-current="false">Mês</button>
+  <button data-ecra="fixas" aria-current="false">Fixas</button>
 </nav>
 
 <div id="toast" class="toast"></div>

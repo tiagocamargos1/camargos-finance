@@ -20,11 +20,26 @@ Controlo de gastos diarios da familia Camargos.
 ## Ecras
 
 - **Lancar** — o formulario de sempre: tipo de gasto, valor, onde, pagamento, quem.
-- **Mes** — acompanhamento: anel de progresso (orcamento ou mes anterior), por
-  categoria, por pessoa, dia a dia, por metodo de pagamento e a lista do mes.
-  Tocar numa categoria ou num dia filtra a lista.
+- **Mes** — acompanhamento: anel de progresso (orcamento ou mes anterior), gastos
+  diarios por categoria, por pessoa, dia a dia, por metodo de pagamento e a lista
+  do mes. Tocar numa categoria ou num dia filtra a lista. O total do mes =
+  gastos diarios + contas fixas, como na planilha.
+- **Fixas** — as contas fixas do mes: previsto / pago / por pagar, agrupadas por dia
+  de vencimento, com um toque para marcar como paga. So o dono marca, edita e cria.
 
-O orcamento mensal fica em `households/{hid}.monthlyBudgetCents` e so o dono o define.
+## Dados no Firestore
+
+| Caminho | O que guarda |
+|---|---|
+| `households/{hid}/entries/{id}` | lancamentos diarios |
+| `households/{hid}/recurring/{id}` | contas fixas: name, category, issuer, dueDay, amountCents, active |
+| `households/{hid}/months/{AAAA-MM}/bills/{recurringId}` | por mes: paid, e amountCents quando o valor do mes e diferente do previsto |
+| `households/{hid}.monthlyBudgetCents` | orcamento mensal (so o dono define) |
+
+As Security Rules ja cobriam isto: dentro de `households/{hid}` ha um
+`match /{documento=**}` que deixa qualquer membro ler e so o dono escrever — por
+isso as contas fixas nao precisaram de regras novas, e marcar uma conta como paga
+e uma accao do dono.
 
 As cores dos graficos (`--g-*` no `index.html`) foram validadas para fundo escuro:
 banda de luminosidade, separacao sob daltonismo (protan/deutan) e contraste contra

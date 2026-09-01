@@ -80,8 +80,45 @@ let estado = {
   orcamentoCents: 0,
   filtroCat: null,
   filtroDia: null,
-  unsubMes: null
+  unsubMes: null,
+  // contas fixas
+  fixas: [],           // households/{hid}/recurring
+  pagasMes: {},        // households/{hid}/months/{AAAA-MM}/bills
+  fixEdicao: false,
+  unsubFixas: null,
+  unsubPagas: null
 };
+
+/* As contas fixas de CONTAS PORTUGAL, para a importação de uma vez só.
+   Valores de referência de agosto/setembro 2026 — depois editam-se na app. */
+const FIXAS_DA_PLANILHA = [
+  ['Seguro de vida (casa)', 'Seguros', 'Ocidental', 1, 9719],
+  ['Plano de saúde', 'Saúde', 'Medicare', 1, 5990],
+  ['Alarme', 'Moradia', 'Horalarme', 1, 2952],
+  ['Gás propano', 'Moradia', 'Galp', 1, 0],
+  ['Seguro Scenic', 'Transporte', 'Ocidental', 1, 2371],
+  ['Seguro vida (empréstimo)', 'Seguros', 'Ocidental', 1, 965],
+  ['Colaboradora do lar', 'Serviços domésticos', 'Lucileia', 1, 130000],
+  ['Doação', 'Doações', 'Unicef', 5, 2000],
+  ['Pacote cliente', 'Financeiro', 'Millennium', 5, 800],
+  ['Escola TJ', 'Educação', 'Andrade Corvo', 5, 0],
+  ['Escola Bella', 'Educação', 'Andrade Corvo', 5, 0],
+  ['Seguro Mac', 'Tecnologia', 'Fnac', 10, 2699],
+  ['Empréstimo', 'Financeiro', 'Millennium', 10, 50460],
+  ['Seguro de incêndio', 'Seguros', 'Ocidental', 15, 4065],
+  ['Energia casa', 'Moradia', 'EDP', 15, 18227],
+  ['TAP Gold Card', 'Cartões', 'Millennium', 15, 0],
+  ['TAP Classic Card', 'Cartões', 'Millennium', 20, 0],
+  ['Classic Card', 'Cartões', 'Millennium', 20, 0],
+  ['Água casa', 'Moradia', 'Município', 20, 6485],
+  ['Seguro Twingo (LU)', 'Transporte', 'Ocidental', 24, 2200],
+  ['Visto Annie', 'Documentação', 'Jabour Vilalba', 25, 10000],
+  ['Prestação casa', 'Moradia', 'Millennium', 25, 128367],
+  ['Energia loja', 'Trabalho', 'MEO', 25, 3608],
+  ['Internet fixa + móvel', 'Comunicações', 'NÓS', 28, 15769],
+  ['Internet fixa sala', 'Comunicações', 'MEO', 29, 24027],
+  ['Móvel work', 'Trabalho', 'MEO', 29, 1448]
+];
 
 const MESES_PT = ['janeiro','fevereiro','março','abril','maio','junho',
   'julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -150,6 +187,8 @@ getRedirectResult(auth).catch((e) => console.error('redirect', e));
 onAuthStateChanged(auth, async (user) => {
   estado.unsubscribes.forEach((u) => u());
   estado.unsubscribes = [];
+  [estado.unsubMes, estado.unsubFixas, estado.unsubPagas].forEach((u) => { if (u) u(); });
+  estado.unsubMes = estado.unsubFixas = estado.unsubPagas = null;
   estado.user = user;
   if (!user) {
     $('#gate').classList.remove('hide');
@@ -208,8 +247,11 @@ async function arrancarAgregado(user) {
   ligarUltimos();
 
   $('#tabs').classList.remove('hide');
+  $('#fixDono').classList.toggle('hide', !estado.souDono);
+  $('#fixAvisoMembro').classList.toggle('hide', estado.souDono);
   if (!estado.mesRef) estado.mesRef = primeiroDiaDoMes(new Date());
   ligarMes();
+  ligarFixas();
 }
 
 async function criarCasa(user) {
@@ -460,8 +502,13 @@ function mostrarEcra(nome) {
   estado.ecra = nome;
   $('#ecraLancar').classList.toggle('hide', nome !== 'lancar');
   $('#ecraMes').classList.toggle('hide', nome !== 'mes');
+  $('#ecraFixas').classList.toggle('hide', nome !== 'fixas');
   $$('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.ecra === nome)));
   window.scrollTo(0, 0);
+}
+
+function chaveMes(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
 // O dia até onde faz sentido comparar: hoje, se estamos no mês corrente.
@@ -532,8 +579,11 @@ function desenharMes() {
   if (!estado.mesRef) return;
 
   const ents = estado.mesEntradas;
-  const total = ents.reduce((s, e) => s + (e.amountCents || 0), 0);
-  const pendente = ents.filter((e) => !e.paid).reduce((s, e) => s + (e.amountCents || 0), 0);
+  const diarios = ents.reduce((s, e) => s + (e.amountCents || 0), 0);
+  const fx = totaisFixas();
+  const total = diarios + fx.previsto;
+  const pendente = ents.filter((e) => !e.paid).reduce((s, e) => s + (e.amountCents || 0), 0)
+    + fx.falta;
   const corte = diaDeCorte();
 
   $('#mesNome').textContent = nomeMes(estado.mesRef).replace(/^./, (c) => c.toUpperCase());
@@ -543,9 +593,9 @@ function desenharMes() {
   $('#mesSeg').disabled = mesmoMes(estado.mesRef, new Date());
 
   $('#mesTotal').textContent = eur(total);
+  $('#mesDiarios').textContent = eur(diarios);
+  $('#mesFixasTot').textContent = eur(fx.previsto);
   $('#mesPend').textContent = eur(pendente);
-  $('#mesMedia').textContent = eur(corte > 0 ? Math.round(total / corte) : 0);
-  $('#mesN').textContent = String(ents.length);
   $('#defOrc').textContent = estado.orcamentoCents
     ? 'orçamento: ' + eur(estado.orcamentoCents) + ' — alterar'
     : 'definir orçamento';
@@ -574,18 +624,20 @@ function desenharMes() {
 
   // --- comparação -------------------------------------------------
   const cmp = $('#mesCmp');
+  const media = 'Média de <b>' + eur(corte > 0 ? Math.round(diarios / corte) : 0) +
+    '</b> por dia em gastos diários. ';
   if (estado.mesAnteriorAteHoje > 0) {
-    const dif = total - estado.mesAnteriorAteHoje;
+    const dif = diarios - estado.mesAnteriorAteHoje;
     const pc = Math.round((dif / estado.mesAnteriorAteHoje) * 100);
     const cls = dif > 0 ? 'sobe' : 'desce';
     const seta = dif > 0 ? '▲' : '▼';
     const abertura = mesmoMes(new Date(), estado.mesRef)
       ? 'No mesmo ponto do mês passado tinhas gasto'
       : 'No mês anterior gastaste';
-    cmp.innerHTML = `${abertura} <b>${eur(estado.mesAnteriorAteHoje)}</b>. ` +
+    cmp.innerHTML = media + `${abertura} <b>${eur(estado.mesAnteriorAteHoje)}</b>. ` +
       `Estás <span class="${cls}">${seta} ${Math.abs(pc)}%</span> (${dif > 0 ? '+' : '−'}${eur(Math.abs(dif))}).`;
   } else {
-    cmp.textContent = 'Ainda não há mês anterior para comparar.';
+    cmp.innerHTML = media + 'Ainda não há mês anterior para comparar.';
   }
 
   // --- por categoria ----------------------------------------------
@@ -595,7 +647,7 @@ function desenharMes() {
   const wc = $('#mesCats');
   wc.innerHTML = '';
   CATEGORIAS.forEach((c) => {
-    const b = barra(c.nome, porCat[c.id] || 0, total,
+    const b = barra(c.nome, porCat[c.id] || 0, diarios,
       `var(${COR_CAT[c.id] || '--g-neutro'})`, estado.filtroCat === c.id);
     b.onclick = () => {
       estado.filtroCat = (estado.filtroCat === c.id ? null : c.id);
@@ -611,7 +663,7 @@ function desenharMes() {
   wp.innerHTML = '';
   Object.entries(porPessoa).sort((a, b) => b[1] - a[1]).forEach(([uid, c], i) => {
     const nome = (estado.membros[uid] && estado.membros[uid].displayName) || 'Sem identificação';
-    wp.appendChild(barra(nome.split(' ')[0], c, total,
+    wp.appendChild(barra(nome.split(' ')[0], c, diarios,
       i === 0 ? 'var(--g-p1)' : 'var(--g-p2)', false));
   });
   if (!Object.keys(porPessoa).length) wp.innerHTML = '<div class="vazio">Sem lançamentos.</div>';
@@ -659,7 +711,7 @@ function desenharMes() {
   const wpg = $('#mesPags');
   wpg.innerHTML = '';
   const pags = Object.entries(porPag).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  pags.forEach(([k, c]) => wpg.appendChild(barra(k, c, total, 'var(--g-neutro)', false)));
+  pags.forEach(([k, c]) => wpg.appendChild(barra(k, c, diarios, 'var(--g-neutro)', false)));
   if (!pags.length) wpg.innerHTML = '<div class="vazio">Sem lançamentos.</div>';
 
   // --- lista -------------------------------------------------------
@@ -744,13 +796,258 @@ async function definirOrcamento() {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Contas fixas                                                        */
+/* ------------------------------------------------------------------ */
+
+function ligarFixas() {
+  if (estado.unsubFixas) estado.unsubFixas();
+  estado.unsubFixas = onSnapshot(
+    collection(db, 'households', estado.hid, 'recurring'),
+    (snap) => {
+      estado.fixas = [];
+      snap.forEach((d) => estado.fixas.push(Object.assign({ id: d.id }, d.data())));
+      estado.fixas.sort((a, b) => (a.dueDay || 0) - (b.dueDay || 0) ||
+        String(a.name).localeCompare(String(b.name), 'pt'));
+      desenharFixas();
+      desenharMes();
+    },
+    (e) => console.error('fixas', e)
+  );
+  ligarPagasDoMes();
+}
+
+function ligarPagasDoMes() {
+  if (estado.unsubPagas) estado.unsubPagas();
+  const mk = chaveMes(estado.mesRef);
+  estado.unsubPagas = onSnapshot(
+    collection(db, 'households', estado.hid, 'months', mk, 'bills'),
+    (snap) => {
+      estado.pagasMes = {};
+      snap.forEach((d) => { estado.pagasMes[d.id] = d.data(); });
+      desenharFixas();
+      desenharMes();
+    },
+    (e) => console.error('pagas', e)
+  );
+}
+
+// Valor da conta neste mês: o valor do mês, se tiver sido corrigido; senão o previsto.
+function valorFixaNoMes(f) {
+  const p = estado.pagasMes[f.id];
+  if (p && typeof p.amountCents === 'number') return p.amountCents;
+  return f.amountCents || 0;
+}
+
+function totaisFixas() {
+  let previsto = 0, pago = 0;
+  estado.fixas.forEach((f) => {
+    if (f.active === false) return;
+    const v = valorFixaNoMes(f);
+    previsto += v;
+    if (estado.pagasMes[f.id] && estado.pagasMes[f.id].paid) pago += v;
+  });
+  return { previsto: previsto, pago: pago, falta: previsto - pago };
+}
+
+function desenharFixas() {
+  if (!estado.mesRef) return;
+
+  $('#fixNome').textContent = nomeMes(estado.mesRef).replace(/^./, (c) => c.toUpperCase());
+  $('#fixSeg').disabled = mesmoMes(estado.mesRef, new Date());
+
+  const t = totaisFixas();
+  $('#fixPrev').textContent = eur(t.previsto);
+  $('#fixPago').textContent = eur(t.pago);
+  $('#fixFalta').textContent = eur(t.falta);
+  $('#fixBarra').style.width = (t.previsto > 0 ? Math.round((t.pago / t.previsto) * 100) : 0) + '%';
+  $('#fixAux').textContent = estado.souDono
+    ? (estado.fixEdicao ? 'a editar' : 'toca no valor para corrigir')
+    : '';
+
+  const wrap = $('#fixLista');
+  wrap.innerHTML = '';
+
+  const ativas = estado.fixas.filter((f) => f.active !== false);
+  if (!ativas.length) {
+    wrap.innerHTML = '<div class="vazio">Ainda não há contas fixas. ' +
+      (estado.souDono ? 'Importa as da planilha ou acrescenta uma.' : 'Pede ao Tiago para as criar.') +
+      '</div>';
+    return;
+  }
+
+  let diaAtual = null;
+  ativas.forEach((f) => {
+    if (f.dueDay !== diaAtual) {
+      diaAtual = f.dueDay;
+      const h = document.createElement('div');
+      h.className = 'diadia';
+      h.textContent = 'Vence dia ' + (diaAtual || '—');
+      wrap.appendChild(h);
+    }
+
+    const paga = !!(estado.pagasMes[f.id] && estado.pagasMes[f.id].paid);
+    const valor = valorFixaNoMes(f);
+    const corrigido = estado.pagasMes[f.id] && typeof estado.pagasMes[f.id].amountCents === 'number';
+
+    const linha = document.createElement('div');
+    linha.className = 'conta' + (paga ? ' paga' : '');
+
+    const tick = document.createElement('button');
+    tick.className = 'tick';
+    tick.textContent = paga ? '✓' : '';
+    tick.setAttribute('aria-pressed', String(paga));
+    tick.setAttribute('aria-label', (paga ? 'Marcar por pagar: ' : 'Marcar como paga: ') + f.name);
+    tick.disabled = !estado.souDono;
+    tick.onclick = () => alternarPagoFixa(f, !paga);
+    linha.appendChild(tick);
+
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.innerHTML = `${f.name}<em>${[f.issuer, f.category].filter(Boolean).join(' · ')}` +
+      `${corrigido ? ' · valor deste mês' : ''}</em>`;
+    linha.appendChild(nm);
+
+    const vl = document.createElement('button');
+    vl.className = 'vl';
+    vl.textContent = eur(valor);
+    vl.disabled = !estado.souDono;
+    vl.onclick = () => corrigirValorDoMes(f);
+    linha.appendChild(vl);
+
+    if (estado.souDono) {
+      const ed = document.createElement('button');
+      ed.className = 'ed';
+      ed.textContent = '⋯';
+      ed.title = 'Editar conta fixa';
+      ed.onclick = () => editarContaFixa(f);
+      linha.appendChild(ed);
+    }
+
+    wrap.appendChild(linha);
+  });
+}
+
+async function alternarPagoFixa(f, paga) {
+  if (!estado.souDono) { toast('Só o dono marca as contas fixas.', true); return; }
+  const mk = chaveMes(estado.mesRef);
+  try {
+    await setDoc(doc(db, 'households', estado.hid, 'months', mk, 'bills', f.id), {
+      paid: paga, paidAt: paga ? serverTimestamp() : null, updatedAt: serverTimestamp()
+    }, { merge: true });
+    // o documento do mês tem de existir para a subcoleção aparecer na consola
+    await setDoc(doc(db, 'households', estado.hid, 'months', mk), { mes: mk }, { merge: true });
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui gravar.', true);
+  }
+}
+
+async function corrigirValorDoMes(f) {
+  if (!estado.souDono) return;
+  const atual = (valorFixaNoMes(f) / 100).toFixed(2).replace('.', ',');
+  const txt = prompt(`Valor de «${f.name}» em ${nomeMes(estado.mesRef)}\n` +
+    '(deixa vazio para voltar ao valor previsto)', atual);
+  if (txt === null) return;
+  const mk = chaveMes(estado.mesRef);
+  try {
+    await setDoc(doc(db, 'households', estado.hid, 'months', mk, 'bills', f.id), {
+      amountCents: txt.trim() === '' ? null : paraCentimos(txt), updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui gravar.', true);
+  }
+}
+
+async function editarContaFixa(f) {
+  if (!estado.souDono) return;
+  const nome = prompt('Nome da conta (vazio = apagar esta conta fixa):', f.name);
+  if (nome === null) return;
+  if (nome.trim() === '') {
+    if (!confirm(`Apagar «${f.name}» de todos os meses?`)) return;
+    try { await deleteDoc(doc(db, 'households', estado.hid, 'recurring', f.id)); toast('Apagada.'); }
+    catch (e) { toast('Não consegui apagar.', true); }
+    return;
+  }
+  const valor = prompt('Valor previsto por mês, em euros:',
+    (f.amountCents / 100).toFixed(2).replace('.', ','));
+  if (valor === null) return;
+  const dia = prompt('Dia de vencimento (1 a 31):', String(f.dueDay || 1));
+  if (dia === null) return;
+  try {
+    await updateDoc(doc(db, 'households', estado.hid, 'recurring', f.id), {
+      name: nome.trim(),
+      amountCents: paraCentimos(valor),
+      dueDay: Math.min(31, Math.max(1, parseInt(dia, 10) || 1)),
+      updatedAt: serverTimestamp()
+    });
+    toast('Atualizada.');
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui gravar.', true);
+  }
+}
+
+async function novaContaFixa() {
+  if (!estado.souDono) return;
+  const nome = prompt('Nome da conta fixa:');
+  if (!nome || !nome.trim()) return;
+  const valor = prompt('Valor previsto por mês, em euros:', '0,00');
+  if (valor === null) return;
+  const dia = prompt('Dia de vencimento (1 a 31):', '1');
+  if (dia === null) return;
+  const emissor = prompt('Emissor (opcional):', '') || '';
+  try {
+    await addDoc(collection(db, 'households', estado.hid, 'recurring'), {
+      name: nome.trim(),
+      category: '',
+      issuer: emissor.trim(),
+      dueDay: Math.min(31, Math.max(1, parseInt(dia, 10) || 1)),
+      amountCents: paraCentimos(valor),
+      active: true,
+      createdAt: serverTimestamp()
+    });
+    toast('Conta fixa criada.');
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui criar.', true);
+  }
+}
+
+async function importarFixasDaPlanilha() {
+  if (!estado.souDono) return;
+  if (estado.fixas.length) {
+    toast('Já existem contas fixas — apaga-as primeiro.', true);
+    return;
+  }
+  const total = FIXAS_DA_PLANILHA.reduce((s, f) => s + f[4], 0);
+  if (!confirm(`Importar ${FIXAS_DA_PLANILHA.length} contas fixas da planilha ` +
+    `(${eur(total)} por mês)?\n\nDepois podes editar cada uma aqui.`)) return;
+  try {
+    for (const [name, category, issuer, dueDay, amountCents] of FIXAS_DA_PLANILHA) {
+      await addDoc(collection(db, 'households', estado.hid, 'recurring'), {
+        name: name, category: category, issuer: issuer, dueDay: dueDay,
+        amountCents: amountCents, active: true, createdAt: serverTimestamp()
+      });
+    }
+    toast('Importadas ' + FIXAS_DA_PLANILHA.length + ' contas fixas.');
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui importar: ' + (e.code || e.message), true);
+  }
+}
+
 function mudarMes(delta) {
   const novo = new Date(estado.mesRef.getFullYear(), estado.mesRef.getMonth() + delta, 1);
   if (novo > primeiroDiaDoMes(new Date())) return;
   estado.mesRef = novo;
   estado.mesEntradas = [];
+  estado.pagasMes = {};
   desenharMes();
+  desenharFixas();
   ligarMes();
+  ligarPagasDoMes();
 }
 
 /* ------------------------------------------------------------------ */
@@ -767,10 +1064,14 @@ window.addEventListener('DOMContentLoaded', () => {
   $$('#tabs button').forEach((b) => { b.onclick = () => mostrarEcra(b.dataset.ecra); });
   $('#mesAnt').onclick = () => mudarMes(-1);
   $('#mesSeg').onclick = () => mudarMes(1);
+  $('#fixAnt').onclick = () => mudarMes(-1);
+  $('#fixSeg').onclick = () => mudarMes(1);
   $('#defOrc').onclick = definirOrcamento;
+  $('#fixNova').onclick = novaContaFixa;
+  $('#fixImportar').onclick = importarFixasDaPlanilha;
 
   const ecraInicial = new URLSearchParams(location.search).get('ecra');
-  if (ecraInicial === 'mes') mostrarEcra('mes');
+  if (ecraInicial === 'mes' || ecraInicial === 'fixas') mostrarEcra(ecraInicial);
 
   const rede = () => {
     $('#offline').classList.toggle('hide', navigator.onLine);
