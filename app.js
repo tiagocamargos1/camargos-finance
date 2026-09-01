@@ -91,6 +91,7 @@ let estado = {
   mesEntradas: [],     // lançamentos desse mês
   mesAnteriorCents: 0, // total do mês anterior (mês inteiro)
   mesAnteriorAteHoje: 0,
+  cartaoMesAnterior: {}, // gasto do mês anterior por meio de pagamento — é o que a fatura traz
   orcamentoCents: 0,
   filtroCat: null,
   filtroDia: null,
@@ -844,6 +845,7 @@ const COR_CAT = {
 
 function primeiroDiaDoMes(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function mesSeguinteDe(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+function mesAnteriorDe(d) { return new Date(d.getFullYear(), d.getMonth() - 1, 1); }
 function diasNoMes(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); }
 function mesmoMes(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
 function nomeMes(d) { return MESES_PT[d.getMonth()] + ' ' + d.getFullYear(); }
@@ -885,6 +887,7 @@ function ligarMes() {
     estado.mesEntradas = [];
     snap.forEach((d) => estado.mesEntradas.push(Object.assign({ id: d.id }, d.data())));
     desenharMes();
+    desenharFixas();   // as linhas de cartão vivem dos lançamentos do mês
   }, (e) => console.error('mes', e));
 
   carregarMesAnterior();
@@ -895,6 +898,7 @@ async function carregarMesAnterior() {
   const fim = estado.mesRef;
   estado.mesAnteriorCents = 0;
   estado.mesAnteriorAteHoje = 0;
+  estado.cartaoMesAnterior = {};   // ver nota dos cartões: a fatura é do mês passado
   try {
     const snap = await getDocs(query(
       collection(db, 'households', estado.hid, 'entries'),
@@ -908,11 +912,18 @@ async function carregarMesAnterior() {
       estado.mesAnteriorCents += c;
       const dia = (e.date && e.date.toDate) ? e.date.toDate().getDate() : 1;
       if (dia <= corte) estado.mesAnteriorAteHoje += c;
+      const mp = String(e.paymentMethod || '').trim().toLowerCase();
+      if (mp) {
+        if (!estado.cartaoMesAnterior[mp]) estado.cartaoMesAnterior[mp] = { cents: 0, n: 0 };
+        estado.cartaoMesAnterior[mp].cents += c;
+        estado.cartaoMesAnterior[mp].n += 1;
+      }
     });
   } catch (err) {
     console.error('mes anterior', err);
   }
   desenharMes();
+  desenharFixas();
 }
 
 function barra(nome, cents, total, cor, ativo) {
@@ -1184,8 +1195,33 @@ function ligarPagasDoMes() {
   );
 }
 
+/* Cartões ---------------------------------------------------------------
+   Uma compra ao cartão é despesa no dia em que se faz, e não no dia em que
+   a fatura sai. Por isso cada compra é lançada como qualquer outra, com o
+   cartão no campo Pagamento, e a linha do cartão nas contas fixas NÃO soma
+   ao total do mês — se somasse, o gasto contava duas vezes.
+
+   A fatura chega no início do mês e traz as compras do mês ANTERIOR, do dia
+   1 ao último. Por isso a linha do cartão em setembro mostra o que foi gasto
+   em agosto: é esse o número que tem de bater certo com a fatura que vence
+   a 15 ou a 20 de setembro. O visto marca que a fatura foi paga. */
+const CATEGORIA_CARTAO = 'Cartões';
+
+function ehCartao(f) {
+  return String(f.category || '').trim().toLowerCase() === CATEGORIA_CARTAO.toLowerCase();
+}
+
+// O que a fatura deste mês deve trazer: o gasto do mês anterior com este cartão.
+function faturaDoCartao(nomeCartao) {
+  const alvo = String(nomeCartao || '').trim().toLowerCase();
+  const r = alvo && estado.cartaoMesAnterior[alvo];
+  return r ? r : { cents: 0, n: 0 };
+}
+
 // Valor da conta neste mês: o valor do mês, se tiver sido corrigido; senão o previsto.
+// Nos cartões o valor não se escreve — lê-se dos lançamentos.
 function valorFixaNoMes(f) {
+  if (ehCartao(f)) return faturaDoCartao(f.name).cents;
   const p = estado.pagasMes[f.id];
   if (p && typeof p.amountCents === 'number') return p.amountCents;
   return f.amountCents || 0;
@@ -1195,6 +1231,7 @@ function totaisFixas() {
   let previsto = 0, pago = 0;
   estado.fixas.forEach((f) => {
     if (f.active === false) return;
+    if (ehCartao(f)) return;              // ver nota acima: a fatura não soma
     const v = valorFixaNoMes(f);
     previsto += v;
     if (estado.pagasMes[f.id] && estado.pagasMes[f.id].paid) pago += v;
@@ -1228,8 +1265,11 @@ function desenharFixas() {
     return;
   }
 
+  const contas = ativas.filter((f) => !ehCartao(f));
+  const cartoes = ativas.filter(ehCartao);
+
   let diaAtual = null;
-  ativas.forEach((f) => {
+  contas.forEach((f) => {
     if (f.dueDay !== diaAtual) {
       diaAtual = f.dueDay;
       const h = document.createElement('div');
@@ -1237,47 +1277,73 @@ function desenharFixas() {
       h.textContent = 'Vence dia ' + (diaAtual || '—');
       wrap.appendChild(h);
     }
-
-    const paga = !!(estado.pagasMes[f.id] && estado.pagasMes[f.id].paid);
-    const valor = valorFixaNoMes(f);
-    const corrigido = estado.pagasMes[f.id] && typeof estado.pagasMes[f.id].amountCents === 'number';
-
-    const linha = document.createElement('div');
-    linha.className = 'conta' + (paga ? ' paga' : '');
-
-    const tick = document.createElement('button');
-    tick.className = 'tick';
-    tick.textContent = paga ? '✓' : '';
-    tick.setAttribute('aria-pressed', String(paga));
-    tick.setAttribute('aria-label', (paga ? 'Marcar por pagar: ' : 'Marcar como paga: ') + f.name);
-    tick.disabled = !estado.souDono;
-    tick.onclick = () => alternarPagoFixa(f, !paga);
-    linha.appendChild(tick);
-
-    const nm = document.createElement('span');
-    nm.className = 'nm';
-    nm.innerHTML = `${f.name}<em>${[f.issuer, f.category].filter(Boolean).join(' · ')}` +
-      `${corrigido ? ' · valor deste mês' : ''}</em>`;
-    linha.appendChild(nm);
-
-    const vl = document.createElement('button');
-    vl.className = 'vl';
-    vl.textContent = eur(valor);
-    vl.disabled = !estado.souDono;
-    vl.onclick = () => corrigirValorDoMes(f);
-    linha.appendChild(vl);
-
-    if (estado.souDono) {
-      const ed = document.createElement('button');
-      ed.className = 'ed';
-      ed.textContent = '⋯';
-      ed.title = 'Editar conta fixa';
-      ed.onclick = () => editarContaFixa(f);
-      linha.appendChild(ed);
-    }
-
-    wrap.appendChild(linha);
+    wrap.appendChild(linhaFixa(f));
   });
+
+  if (cartoes.length) {
+    const h = document.createElement('div');
+    h.className = 'diadia';
+    h.textContent = 'Cartões';
+    wrap.appendChild(h);
+
+    const nota = document.createElement('div');
+    nota.className = 'notaCartao';
+    nota.innerHTML = 'A fatura traz as compras de <b>' + nomeMes(mesAnteriorDe(estado.mesRef)) +
+      '</b>. Estes valores <b>não somam</b> ao total do mês — cada compra já contou no dia ' +
+      'em que foi feita. Estão aqui para conferir a fatura e marcar que foi paga.';
+    wrap.appendChild(nota);
+
+    cartoes.forEach((f) => wrap.appendChild(linhaFixa(f)));
+  }
+}
+
+function linhaFixa(f) {
+  const cartao = ehCartao(f);
+  const paga = !!(estado.pagasMes[f.id] && estado.pagasMes[f.id].paid);
+  const valor = valorFixaNoMes(f);
+  const corrigido = !cartao && estado.pagasMes[f.id] &&
+    typeof estado.pagasMes[f.id].amountCents === 'number';
+
+  const linha = document.createElement('div');
+  linha.className = 'conta' + (paga ? ' paga' : '') + (cartao ? ' cartao' : '');
+
+  const tick = document.createElement('button');
+  tick.className = 'tick';
+  tick.textContent = paga ? '✓' : '';
+  tick.setAttribute('aria-pressed', String(paga));
+  tick.setAttribute('aria-label', (paga ? 'Marcar por pagar: ' : 'Marcar como paga: ') + f.name);
+  tick.disabled = !estado.souDono;
+  tick.onclick = () => alternarPagoFixa(f, !paga);
+  linha.appendChild(tick);
+
+  const nq = cartao ? faturaDoCartao(f.name).n : 0;
+
+  const nm = document.createElement('span');
+  nm.className = 'nm';
+  nm.innerHTML = `${f.name}<em>` + (cartao
+    ? `vence dia ${f.dueDay || '—'} · ${nq} ${nq === 1 ? 'compra' : 'compras'} em ` +
+      nomeMes(mesAnteriorDe(estado.mesRef))
+    : `${[f.issuer, f.category].filter(Boolean).join(' · ')}${corrigido ? ' · valor deste mês' : ''}`) +
+    '</em>';
+  linha.appendChild(nm);
+
+  const vl = document.createElement('button');
+  vl.className = 'vl';
+  vl.textContent = eur(valor);
+  vl.disabled = !estado.souDono || cartao;   // o valor do cartão vem dos lançamentos
+  if (!cartao) vl.onclick = () => corrigirValorDoMes(f);
+  linha.appendChild(vl);
+
+  if (estado.souDono) {
+    const ed = document.createElement('button');
+    ed.className = 'ed';
+    ed.textContent = '⋯';
+    ed.title = 'Editar conta fixa';
+    ed.onclick = () => editarContaFixa(f);
+    linha.appendChild(ed);
+  }
+
+  return linha;
 }
 
 async function alternarPagoFixa(f, paga) {
