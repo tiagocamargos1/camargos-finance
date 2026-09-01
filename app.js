@@ -27,6 +27,11 @@ const firebaseConfig = {
 // Quem é o dono da casa. Só este email pode apagar e administrar.
 const OWNER_EMAIL = "tiagocamargos@tocsmartgroup.com";
 
+// A casa e uma so, por desenho. O id fica aqui porque o convidado precisa de
+// chegar ao convite dele SEM listar os agregados — ver aceitarConvite().
+// Se alguma vez se criar uma casa nova, e aqui que se muda.
+const HOUSEHOLD_ID = "o02RpoYWIsABYrcRXeRn";
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
@@ -301,23 +306,26 @@ async function criarCasa(user) {
 
 // Um convidado só entra se existir um convite com o id igual ao email dele.
 // É isto que as Security Rules exigem.
+//
+// ⚠️ Le-se o convite DIRETAMENTE, pelo caminho completo. A versao anterior
+// listava os agregados (`getDocs(collection(db,'households'))`) a procura do
+// convite, e isso nunca podia funcionar: a regra e `allow read: if membro(hid)`,
+// e quem ainda nao entrou nao e membro de nada — a listagem era recusada e o
+// convidado ficava presa no ecra «sem casa», com o convite criado e tudo.
 async function aceitarConvite(user) {
   const email = (user.email || '').toLowerCase();
   if (!email) return null;
-  const casas = await getDocs(collection(db, 'households'));
-  for (const h of casas.docs) {
-    const inv = await getDoc(doc(db, 'households', h.id, 'invites', email));
-    if (inv.exists()) {
-      await setDoc(doc(db, 'households', h.id, 'members', user.uid), {
-        role: 'member',
-        displayName: user.displayName || '',
-        email: email,
-        joinedAt: serverTimestamp()
-      });
-      return h.id;
-    }
-  }
-  return null;
+
+  const inv = await getDoc(doc(db, 'households', HOUSEHOLD_ID, 'invites', email));
+  if (!inv.exists()) return null;
+
+  await setDoc(doc(db, 'households', HOUSEHOLD_ID, 'members', user.uid), {
+    role: 'member',
+    displayName: user.displayName || '',
+    email: email,
+    joinedAt: serverTimestamp()
+  });
+  return HOUSEHOLD_ID;
 }
 
 async function carregarListas() {
