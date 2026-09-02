@@ -32,6 +32,13 @@ const OWNER_EMAIL = "tiagocamargos@tocsmartgroup.com";
 // Se alguma vez se criar uma casa nova, e aqui que se muda.
 const HOUSEHOLD_ID = "o02RpoYWIsABYrcRXeRn";
 
+// A lista de compras vive FORA do agregado, numa coleção própria com membros
+// próprios. É isso — e não o ecrã — que garante que quem entra na lista não vê
+// lançamentos, contas fixas nem orçamento: as regras do Firestore nunca lhe dão
+// acesso a `households/`. O id é fixo pela mesma razão do HOUSEHOLD_ID: o
+// convidado tem de ler o convite dele pelo caminho completo, sem listar nada.
+const LISTA_ID = "casa";
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
@@ -104,7 +111,14 @@ let estado = {
   unsubPagas: null,
   // leitura de talões
   ocrUrl: '',
-  recibo: null
+  recibo: null,
+  // Lista de compras (fora do agregado)
+  naLista: false,
+  souDonoLista: false,
+  itens: [],
+  habituais: [],
+  unsubLista: null,
+  unsubHabituais: null
 };
 
 // O que a leitura do talão devolve na chave «aba», e o tipo correspondente aqui.
@@ -255,8 +269,10 @@ getRedirectResult(auth).catch((e) => console.error('redirect', e));
 onAuthStateChanged(auth, async (user) => {
   estado.unsubscribes.forEach((u) => u());
   estado.unsubscribes = [];
-  [estado.unsubMes, estado.unsubFixas, estado.unsubPagas].forEach((u) => { if (u) u(); });
+  [estado.unsubMes, estado.unsubFixas, estado.unsubPagas,
+   estado.unsubLista, estado.unsubHabituais].forEach((u) => { if (u) u(); });
   estado.unsubMes = estado.unsubFixas = estado.unsubPagas = null;
+  estado.unsubLista = estado.unsubHabituais = null;
   estado.user = user;
   if (!user) {
     $('#gate').classList.remove('hide');
@@ -268,6 +284,8 @@ onAuthStateChanged(auth, async (user) => {
   // o cabecalho mostra o nome da casa e o avatar; nao existe elemento #eu
   if (user.photoURL) { $('#avatar').src = user.photoURL; $('#avatar').classList.remove('hide'); }
   await arrancarAgregado(user);
+  await arrancarLista(user);
+  ajustarSeparadores();
 });
 
 /* ------------------------------------------------------------------ */
@@ -856,6 +874,7 @@ function mostrarEcra(nome) {
   $('#ecraMes').classList.toggle('hide', nome !== 'mes');
   $('#ecraFixas').classList.toggle('hide', nome !== 'fixas');
   $('#ecraCasa').classList.toggle('hide', nome !== 'casa');
+  $('#ecraLista').classList.toggle('hide', nome !== 'lista');
   if (nome === 'casa') ligarCasa();
   $$('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.ecra === nome)));
   window.scrollTo(0, 0);
@@ -1468,6 +1487,257 @@ function mudarMes(delta) {
   ligarPagasDoMes();
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Lista de compras — partilhada, e fora do agregado                   */
+/* ------------------------------------------------------------------ */
+/*
+ * Porque é que isto não vive dentro de `households/`: quem usa a lista (a Lu,
+ * e o iPhone da casa) não deve ver os gastos. Se a lista fosse uma subcoleção
+ * do agregado, a regra `match /{documento=**}` do agregado dava-lhe leitura de
+ * TUDO. Numa coleção à parte, com membros próprios, não há nada para fugir.
+ *
+ * Ecrã e regras dizem o mesmo, e é de propósito: o CSS esconde os separadores,
+ * as Security Rules é que impedem mesmo.
+ */
+
+async function arrancarLista(user) {
+  estado.naLista = false;
+  estado.souDonoLista = false;
+  const email = (user.email || '').toLowerCase();
+  if (!email) return;
+
+  let membro = null;
+  try {
+    membro = await getDoc(doc(db, 'listas', LISTA_ID, 'membros', user.uid));
+  } catch (e) { membro = null; }
+
+  if (!membro || !membro.exists()) {
+    // Primeira vez: só entra se existir um convite com o email dele. Lê-se o
+    // convite pelo CAMINHO COMPLETO — nunca por listagem (a lição do convite
+    // do agregado, que ficava preso no ecrã «sem casa»).
+    try {
+      const cv = await getDoc(doc(db, 'listas', LISTA_ID, 'convites', email));
+      if (!cv.exists()) return;
+      await setDoc(doc(db, 'listas', LISTA_ID, 'membros', user.uid), {
+        role: cv.data().role || 'member',
+        displayName: user.displayName || '',
+        email: email,
+        joinedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.warn('lista: sem convite', e);
+      return;
+    }
+  }
+
+  estado.naLista = true;
+  try {
+    const l = await getDoc(doc(db, 'listas', LISTA_ID));
+    estado.souDonoLista = l.exists() && l.data().ownerUid === user.uid;
+  } catch (e) { /* não é preciso para usar a lista */ }
+
+  ligarLista();
+}
+
+/* Quem não tem casa mas está na lista vê a lista, e mais nada. */
+function ajustarSeparadores() {
+  const temCasa = !!estado.hid;
+  const soLista = !temCasa && estado.naLista;
+  document.body.classList.toggle('soLista', soLista);
+  $('#tabLista').classList.toggle('hide', !estado.naLista);
+  if (soLista) {
+    $('#semCasa').classList.add('hide');
+    $('#formWrap').classList.add('hide');
+    $('#tabs').classList.remove('hide');
+    mostrarEcra('lista');
+  }
+}
+
+function ligarLista() {
+  if (estado.unsubLista) { estado.unsubLista(); estado.unsubLista = null; }
+  if (estado.unsubHabituais) { estado.unsubHabituais(); estado.unsubHabituais = null; }
+
+  // `criadoEm` é um número do relógio do telemóvel, não um serverTimestamp:
+  // enquanto o servidor não confirma, um serverTimestamp fica a null no cache
+  // local e o documento CAI FORA de um orderBy — o item acabado de escrever
+  // desaparecia da lista até haver rede. Com um número, aparece logo.
+  estado.unsubLista = onSnapshot(
+    query(collection(db, 'listas', LISTA_ID, 'itens'), orderBy('criadoEm', 'asc')),
+    (snap) => {
+      estado.itens = [];
+      snap.forEach((d) => estado.itens.push(Object.assign({ id: d.id }, d.data())));
+      desenharLista();
+    },
+    (e) => console.warn('lista/itens', e)
+  );
+
+  estado.unsubHabituais = onSnapshot(
+    query(collection(db, 'listas', LISTA_ID, 'habituais'), orderBy('vezes', 'desc'), limit(12)),
+    (snap) => {
+      estado.habituais = [];
+      snap.forEach((d) => estado.habituais.push(Object.assign({ id: d.id }, d.data())));
+      desenharHabituais();
+    },
+    (e) => console.warn('lista/habituais', e)
+  );
+}
+
+/* «Detergente da Loiça» e «detergente da loica» são o mesmo item. */
+function chaveItem(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function desenharLista() {
+  const alvo = $('#listaItens');
+  const porFazer = estado.itens.filter((i) => !i.feito);
+  const feitos = estado.itens.filter((i) => i.feito);
+
+  $('#listaConta').textContent = porFazer.length
+    ? porFazer.length + (porFazer.length === 1 ? ' por comprar' : ' por comprar')
+    : (estado.itens.length ? 'tudo apanhado' : '');
+
+  alvo.innerHTML = '';
+  if (!estado.itens.length) {
+    const v = document.createElement('div');
+    v.className = 'vazio';
+    v.textContent = 'A lista está vazia. Escreve em cima o que faltar.';
+    alvo.appendChild(v);
+  } else {
+    porFazer.concat(feitos).forEach((it) => alvo.appendChild(linhaItem(it)));
+  }
+
+  const bt = $('#listaFechar');
+  bt.classList.toggle('hide', !feitos.length);
+  bt.textContent = feitos.length === 1
+    ? 'terminar compra · 1 item'
+    : 'terminar compra · ' + feitos.length + ' itens';
+
+  desenharHabituais();
+}
+
+function linhaItem(it) {
+  const el = document.createElement('div');
+  el.className = 'item' + (it.feito ? ' feito' : '');
+
+  const tick = document.createElement('button');
+  tick.className = 'tick';
+  tick.setAttribute('aria-label', it.feito ? 'desmarcar' : 'marcar como comprado');
+  tick.textContent = it.feito ? '✓' : '';
+  tick.onclick = () => marcarItem(it, !it.feito);
+
+  const txt = document.createElement('div');
+  txt.className = 'txt';
+  const nome = document.createElement('b');
+  nome.textContent = it.nome || '';
+  const quem = document.createElement('span');
+  const primeiro = String(it.quem || '').trim().split(/\s+/)[0];
+  quem.textContent = primeiro ? 'por ' + primeiro : '';
+  txt.appendChild(nome); txt.appendChild(quem);
+
+  const del = document.createElement('button');
+  del.className = 'apagar';
+  del.setAttribute('aria-label', 'apagar');
+  del.textContent = '×';
+  del.onclick = () => apagarItem(it);
+
+  el.appendChild(tick); el.appendChild(txt); el.appendChild(del);
+  return el;
+}
+
+/* O histórico é o que faz a lista sugerir sozinha da próxima vez. */
+function desenharHabituais() {
+  const alvo = $('#listaHabituais');
+  if (!alvo) return;
+  const jaLa = {};
+  estado.itens.forEach((i) => { if (!i.feito) jaLa[chaveItem(i.nome)] = true; });
+  const sugestoes = estado.habituais.filter((h) => !jaLa[h.id]);
+
+  $('#listaHabWrap').classList.toggle('hide', !sugestoes.length);
+  alvo.innerHTML = '';
+  sugestoes.forEach((h) => {
+    const b = document.createElement('button');
+    b.className = 'chipH';
+    b.textContent = h.nome || h.id;
+    b.onclick = () => adicionarItem(h.nome || h.id);
+    alvo.appendChild(b);
+  });
+}
+
+async function adicionarItem(nome) {
+  const texto = String(nome || '').trim();
+  if (!texto) return;
+  const chave = chaveItem(texto);
+  const repetido = estado.itens.find((i) => !i.feito && chaveItem(i.nome) === chave);
+  if (repetido) {
+    toast('«' + repetido.nome + '» já está na lista.');
+    $('#listaTexto').value = '';
+    return;
+  }
+  $('#listaTexto').value = '';
+  try {
+    await addDoc(collection(db, 'listas', LISTA_ID, 'itens'), {
+      nome: texto,
+      feito: false,
+      quem: estado.user ? (estado.user.displayName || estado.user.email || '') : '',
+      quemUid: estado.user ? estado.user.uid : '',
+      criadoEm: Date.now(),
+      criadoTs: serverTimestamp()
+    });
+  } catch (e) {
+    toast('Não consegui acrescentar: ' + (e.code || e.message), true);
+  }
+}
+
+async function marcarItem(it, feito) {
+  try {
+    await updateDoc(doc(db, 'listas', LISTA_ID, 'itens', it.id), {
+      feito: !!feito,
+      feitoEm: feito ? Date.now() : null
+    });
+  } catch (e) {
+    toast('Não consegui marcar: ' + (e.code || e.message), true);
+  }
+}
+
+async function apagarItem(it) {
+  try {
+    await deleteDoc(doc(db, 'listas', LISTA_ID, 'itens', it.id));
+  } catch (e) {
+    toast('Não consegui apagar: ' + (e.code || e.message), true);
+  }
+}
+
+/*
+ * Fim da compra: o que foi comprado sai da lista e soma uma no histórico.
+ * Não se apaga o que ficou por comprar — isso continua a faltar.
+ */
+async function terminarCompra() {
+  const feitos = estado.itens.filter((i) => i.feito);
+  if (!feitos.length) return;
+  const quantos = feitos.length === 1 ? '1 item' : feitos.length + ' itens';
+  if (!confirm('Tirar ' + quantos + ' da lista e guardar no histórico?')) return;
+
+  let guardados = 0;
+  for (const it of feitos) {
+    const chave = chaveItem(it.nome);
+    if (chave) {
+      const ref = doc(db, 'listas', LISTA_ID, 'habituais', chave);
+      let vezes = 0;
+      try {
+        const s = await getDoc(ref);
+        if (s.exists()) vezes = Number(s.data().vezes) || 0;
+      } catch (e) { /* primeira vez */ }
+      try {
+        await setDoc(ref, { nome: it.nome, vezes: vezes + 1, ultimaVez: Date.now() }, { merge: true });
+      } catch (e) { console.warn('habituais', e); }
+    }
+    try { await deleteDoc(doc(db, 'listas', LISTA_ID, 'itens', it.id)); guardados++; } catch (e) {}
+  }
+  toast('Compra fechada — ' + guardados + ' no histórico.');
+}
+
 /* ------------------------------------------------------------------ */
 /* Ligações                                                            */
 /* ------------------------------------------------------------------ */
@@ -1490,13 +1760,19 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#fixNova').onclick = novaContaFixa;
   $('#fixImportar').onclick = importarFixasDaPlanilha;
 
+  $('#listaAdd').onclick = () => adicionarItem($('#listaTexto').value);
+  $('#listaTexto').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); adicionarItem($('#listaTexto').value); }
+  });
+  $('#listaFechar').onclick = terminarCompra;
+
   $('#btFoto').onclick = () => $('#fileFoto').click();
   $('#fileFoto').onchange = (ev) => lerTalao(ev.target.files && ev.target.files[0]);
   $('#reciboUsar').onclick = usarRecibo;
   $('#reciboFora').onclick = esconderRecibo;
 
   const ecraInicial = new URLSearchParams(location.search).get('ecra');
-  if (ecraInicial === 'mes' || ecraInicial === 'fixas') mostrarEcra(ecraInicial);
+  if (['mes','fixas','lista'].indexOf(ecraInicial) >= 0) mostrarEcra(ecraInicial);
 
   const rede = () => {
     $('#offline').classList.toggle('hide', navigator.onLine);
