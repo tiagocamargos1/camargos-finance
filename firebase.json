@@ -8,24 +8,47 @@
       ".git/**",
       "**/.git/**",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      ".firebase/**",
+      "**/.firebase/**",
+      "index_1.html"
     ],
     "headers": [
       {
         "source": "/sw.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
       },
       {
         "source": "/index.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
       },
       {
         "source": "/app.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
       },
       {
         "source": "/manifest.json",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
       }
     ]
   }
